@@ -9,6 +9,26 @@
 <meta name="apple-mobile-web-app-title" content="Schedule"/>
 <title>Master Schedule</title>
 <link rel="manifest" href="./manifest.json"/>
+<script>
+// Inline manifest fallback
+const manifestData = {
+  name: "Master Schedule",
+  short_name: "Schedule",
+  description: "Junior Motsoko — Master Study Schedule",
+  start_url: "./",
+  display: "standalone",
+  background_color: "#08123a",
+  theme_color: "#08123a",
+  orientation: "portrait",
+  icons: [
+    {src:"./icons/icon-192.png",sizes:"192x192",type:"image/png",purpose:"any maskable"},
+    {src:"./icons/icon-512.png",sizes:"512x512",type:"image/png",purpose:"any maskable"}
+  ]
+};
+const blob = new Blob([JSON.stringify(manifestData)], {type:"application/json"});
+const manifestURL = URL.createObjectURL(blob);
+document.querySelector('link[rel="manifest"]').href = manifestURL;
+</script>
 <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
 <style>
 /* ── iOS SYSTEM FONT STACK ── */
