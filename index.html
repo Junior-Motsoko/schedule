@@ -1098,6 +1098,7 @@ function App() {
     };
     setMustDo(n);
     LSS("must_do_v1", n);
+    syncToSupa("must_do", { id: `${DEVICE_ID}_${todayStr}`, user_id: DEVICE_ID, date: todayStr, tasks });
   };
   const addMust = () => {
     if (!mustInput.trim() || todayMust.length >= 3) return;
@@ -1126,6 +1127,7 @@ function App() {
     };
     setBlockNotes(n);
     LSS("block_notes_v1", n);
+    syncToSupa("must_do", { id: `${DEVICE_ID}_note_${k}`, user_id: DEVICE_ID, date: `note_${k}`, tasks: noteInput });
     setNoteEdit(null);
     setNoteInput("");
   };
@@ -2317,6 +2319,7 @@ function LPSection(_ref5) {
     };
     setStar(n);
     LSS("az_star", n);
+    syncToSupa("star_stories", { id: `${DEVICE_ID}_${i}`, user_id: DEVICE_ID, lp_index: i, story: flat });
     const n2 = {
       ...starSections,
       [i]: sections
@@ -5197,6 +5200,7 @@ function DeadlinesTab() {
     };
     setDeadlines(n);
     LSS("deadlines_v1", n);
+    syncToSupa("deadlines", { id, user_id: DEVICE_ID, title: form.title, date: form.date, type: form.type, note: form.note, done: false });
     setForm({
       title: "",
       type: "PHY",
@@ -5214,6 +5218,7 @@ function DeadlinesTab() {
     };
     setDeadlines(n);
     LSS("deadlines_v1", n);
+    syncToSupa("deadlines", { id, user_id: DEVICE_ID, ...deadlines[id], done: !deadlines[id].done });
     if (navigator.vibrate) navigator.vibrate(30);
   };
   const del = id => {
@@ -5223,6 +5228,7 @@ function DeadlinesTab() {
     delete n[id];
     setDeadlines(n);
     LSS("deadlines_v1", n);
+    deleteFromSupa("deadlines", id);
   };
   const items = Object.values(deadlines).sort((a, b) => new Date(a.date) - new Date(b.date));
   const upcoming = items.filter(d => !d.done && new Date(d.date) >= new Date().setHours(0, 0, 0, 0));
@@ -8615,6 +8621,12 @@ function ReviewTab(_ref27) {
   const saveReviews = r => {
     setReviews(r);
     LSS("reviews_v1", r);
+    // Sync latest review to Supabase
+    const latestWk = Object.keys(r).sort().pop();
+    if (latestWk && r[latestWk]?.done) {
+      const rv = r[latestWk];
+      syncToSupa("reviews", { id: `${DEVICE_ID}_${latestWk}`, user_id: DEVICE_ID, week: latestWk, win: rv.win, skipped: rv.skipped, energy: rv.energy, different: rv.different, rating: rv.rating, blocks_done: rv.blocksDone, blocks_total: rv.blocksTotal });
+    }
   };
 
   // Auto-calculate blocks completed from ticks
