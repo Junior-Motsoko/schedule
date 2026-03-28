@@ -1,0 +1,62 @@
+{
+  "name": "Master Schedule",
+  "short_name": "Schedule",
+  "description": "Junior Motsoko — Master Study Schedule",
+  "start_url": "/schedule/",
+  "scope": "/schedule/",
+  "display": "standalone",
+  "background_color": "#08123a",
+  "theme_color": "#08123a",
+  "orientation": "portrait",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/schedule/icons/launchericon-48x48.png",
+      "sizes": "48x48",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/schedule/icons/launchericon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/schedule/icons/launchericon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/schedule/icons/launchericon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/schedule/icons/launchericon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/schedule/icons/launchericon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/schedule/icons/launchericon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/schedule/icons/launchericon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
