@@ -10,6 +10,7 @@
 <title>Master Schedule</title>
 <link rel="manifest" href="./manifest.json"/>
 <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 /* ── iOS SYSTEM FONT STACK ── */
 :root{
@@ -766,6 +767,48 @@ const DEVICE_ID = getDeviceId();
 // Sync helpers — write to localStorage immediately, sync to Supabase in background
 const syncToSupa = async (table, data) => { try { await supa.upsert(table, data); } catch {} };
 const deleteFromSupa = async (table, id) => { try { await supa.delete(table, `id=eq.${id}`); } catch {} };
+
+// ── GOOGLE CALENDAR SYNC ─────────────────────────────────────────────────────
+const GCAL_CLIENT_ID = "988296305612-oerq6ak626saln3qrih2osh3erbft24r.apps.googleusercontent.com";
+const GCAL_SCOPE = "https://www.googleapis.com/auth/calendar.events";
+
+const getGCalToken = () => localStorage.getItem("gcal_token");
+const setGCalToken = (t) => localStorage.setItem("gcal_token", t);
+const clearGCalToken = () => localStorage.removeItem("gcal_token");
+
+const requestGCalAccess = () => new Promise((resolve) => {
+  if (typeof google === "undefined") { resolve(null); return; }
+  const client = google.accounts.oauth2.initTokenClient({
+    client_id: GCAL_CLIENT_ID,
+    scope: GCAL_SCOPE,
+    callback: (resp) => {
+      if (resp.access_token) { setGCalToken(resp.access_token); resolve(resp.access_token); }
+      else resolve(null);
+    }
+  });
+  client.requestAccessToken();
+});
+
+const addToGCal = async (title, date, note = "") => {
+  let token = getGCalToken();
+  if (!token) token = await requestGCalAccess();
+  if (!token) return;
+  const start = new Date(date + "T08:00:00");
+  const end = new Date(date + "T09:00:00");
+  try {
+    await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        summary: `📌 ${title}`,
+        description: note || "Added from Master Schedule",
+        start: { dateTime: start.toISOString(), timeZone: "Africa/Johannesburg" },
+        end: { dateTime: end.toISOString(), timeZone: "Africa/Johannesburg" },
+        reminders: { useDefault: false, overrides: [{ method: "email", minutes: 1440 }, { method: "popup", minutes: 60 }] }
+      })
+    });
+  } catch(e) { console.log("GCal error:", e); }
+};
 
 const LS = k => {
   try {
@@ -5201,6 +5244,7 @@ function DeadlinesTab() {
     setDeadlines(n);
     LSS("deadlines_v1", n);
     syncToSupa("deadlines", { id, user_id: DEVICE_ID, title: form.title, date: form.date, type: form.type, note: form.note, done: false });
+    addToGCal(form.title, form.date, form.note);
     setForm({
       title: "",
       type: "PHY",
@@ -9782,6 +9826,25 @@ function NotifsTab(_ref36) {
       marginBottom: 8
     }
   }, "\u2139\uFE0F How this works"), /*#__PURE__*/React.createElement("div", {
+    className: "card card-p",
+    style: { marginBottom: 14 }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 13, fontWeight: 700, marginBottom: 4 }
+  }, "\uD83D\uDCC5 Google Calendar Sync"), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 13, color: "var(--txt2)", lineHeight: 1.6, marginBottom: 12 }
+  }, "Connect Google Calendar to automatically add deadlines as events with reminders."), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-primary",
+    style: { width: "100%" },
+    onClick: async () => {
+      const token = await requestGCalAccess();
+      if (token) alert("✅ Google Calendar connected! New deadlines will sync automatically.");
+      else alert("Could not connect. Make sure popups are allowed.");
+    }
+  }, "\uD83D\uDD17 Connect Google Calendar"), getGCalToken() && /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-ghost btn-sm",
+    style: { width: "100%", marginTop: 8 },
+    onClick: () => { clearGCalToken(); alert("Disconnected."); }
+  }, "Disconnect")),
     style: {
       fontSize: 13,
       color: "var(--txt2)",
