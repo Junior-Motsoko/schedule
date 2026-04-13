@@ -92,6 +92,23 @@
 [data-theme=light] .list-row:active{background:var(--sur2);}
 [data-theme=light] .mcard{background:var(--sur);}
 [data-theme=light] input{background:var(--sur2);color:var(--txt);border-color:var(--bdr2);}
+[data-theme=light] select{background:var(--sur2);color:var(--txt);border-color:var(--bdr2);}
+[data-theme=light] .modal-sheet{background:var(--sur);}
+[data-theme=light] .pbar{background:var(--sur3);}
+[data-theme=light] .ios-toggle .toggle-track{background:var(--sur3);}
+[data-theme=light] .filter-strip{background:var(--sur);}
+[data-theme=light] .nb{color:var(--txt2);}
+[data-theme=light] .nb.on{color:var(--acc);}
+[data-theme=light] .nb-label{color:inherit;}
+[data-theme=light] .day-col{background:var(--sur);}
+[data-theme=light] .scel.checked{background:var(--acc-dim);}
+[data-theme=light] .week-grid{background:var(--sur);}
+[data-theme=light] .lp-card{background:var(--sur);border-color:var(--bdr);}
+[data-theme=light] .star-body textarea{background:var(--sur2);color:var(--txt);}
+[data-theme=light] *[style*="background: linear-gradient(145deg,#1a0a00"]{background:var(--sur)!important;}
+[data-theme=light] *[style*="background: linear-gradient(145deg,#0a3d1e"]{background:linear-gradient(145deg,#e8f8f2,#f5fbf8)!important;}
+[data-theme=light] *[style*="background: linear-gradient(145deg,#1a1500"]{background:linear-gradient(145deg,#fefce8,#fffdf5)!important;}
+[data-theme=light] *[style*="background:\"linear-gradient(135deg,var(--bg2)"]{background:var(--sur)!important;}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 html{height:100%;-webkit-text-size-adjust:100%;}
 body{font-family:var(--sys-font);background:var(--bg);color:var(--txt);min-height:100%;overflow-x:hidden;-webkit-font-smoothing:antialiased;letter-spacing:-0.01em;transition:background 0.4s,color 0.4s;}
@@ -183,8 +200,8 @@ textarea:focus{outline:1.5px solid var(--acc);outline-offset:0;border-color:tran
 .chip{display:flex;flex-direction:column;align-items:center;background:var(--sur);border-radius:var(--r-md);padding:10px 14px;min-width:62px;flex-shrink:0;box-shadow:0 1px 3px rgba(0,0,0,0.3),0 0 0 0.5px var(--bdr);}
 .chip-n{font-family:var(--mono);font-size:20px;font-weight:500;line-height:1;letter-spacing:-0.03em;}
 .chip-l{font-size:8.5px;font-weight:700;letter-spacing:0.08em;color:var(--txt3);margin-top:3px;text-transform:uppercase;}
-@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-.fu{animation:fadeUp 0.24s cubic-bezier(0.4,0,0.2,1) both;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.fu{}
 .filter-strip{display:flex;gap:6px;overflow-x:auto;margin-bottom:14px;padding-bottom:2px;flex-wrap:nowrap;}
 .filter-strip::-webkit-scrollbar{display:none;}
 .fbtn{font-size:12px;font-weight:600;padding:6px 14px;border-radius:99px;border:0.5px solid var(--bdr2);background:var(--sur2);color:var(--txt3);cursor:pointer;transition:all 0.18s;-webkit-tap-highlight-color:transparent;white-space:nowrap;flex-shrink:0;letter-spacing:0.02em;}
@@ -643,6 +660,15 @@ const daysTo = d => Math.max(0, Math.ceil((d - new Date().setHours(0, 0, 0, 0)) 
 // ── SUPABASE CLIENT ──────────────────────────────────────────────────────────
 const SUPA_URL = "https://zvizxwwmgxzehbaukyuo.supabase.co";
 const SUPA_KEY = "sb_publishable_FASRdmlsPXmavuknJlejeA_52l9rzp_";
+const GEMINI_KEY = "PASTE_YOUR_GEMINI_KEY_HERE"; // get free key at aistudio.google.com
+const gemini = async (prompt, maxTokens=300) => {
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: maxTokens } })
+  });
+  const data = await res.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || "No response.";
+};
 
 const supa = {
   async req(method, path, body) {
@@ -805,16 +831,58 @@ function Skeleton() {
 // ── MAIN APP ──────────────────────────────────────────────────────────────────
 function App() {
   const [loading, setLoading] = useState(true);
+  const [onboarded, setOnboarded] = useState(() => {
+    // Skip onboarding if user already has data (existing user)
+    if (localStorage.getItem("onboarded_v1")) return true;
+    const hasData = localStorage.getItem("sv5") || localStorage.getItem("deadlines_v1") || localStorage.getItem("must_do_v1");
+    if (hasData) { localStorage.setItem("onboarded_v1", "1"); return true; }
+    return false;
+  });
+  const [onboardStep, setOnboardStep] = useState(0);
   const [theme, setTheme] = useState(() => localStorage.getItem("th") || "dark");
+  const [autoTheme, setAutoTheme] = useState(() => localStorage.getItem("auto_theme") === "1");
+  const [pwaPrompt, setPwaPrompt] = useState(null);
+  const [showPwaBar, setShowPwaBar] = useState(false);
+  useEffect(() => {
+    const handler = e => { e.preventDefault(); setPwaPrompt(e); setTimeout(() => setShowPwaBar(true), 30000); };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+  const [isOffline, setIsOffline] = useState(() => !navigator.onLine);
+  useEffect(() => {
+    const onOnline = () => setIsOffline(false);
+    const onOffline = () => setIsOffline(true);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => { window.removeEventListener("online", onOnline); window.removeEventListener("offline", onOffline); };
+  }, []);
+  useEffect(() => {
+    if (!autoTheme) return;
+    const applyAutoTheme = () => {
+      const h = new Date().getHours();
+      setTheme(h >= 6 && h < 18 ? "light" : "dark");
+    };
+    applyAutoTheme();
+    const iv = setInterval(applyAutoTheme, 60000);
+    return () => clearInterval(iv);
+  }, [autoTheme]);
   const [tab, setTab] = useState("today");
+  const [showGlobalSearch, setShowGlobalSearch] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+  const [globalQuery, setGlobalQuery] = useState("");
   const [era, setEra] = useState("NOW");
   const [filter, setFilter] = useState(() => localStorage.getItem("last_filter") || "ALL");
   const setFilterM = f => { setFilter(f); localStorage.setItem("last_filter", f); };
   const [checked, setChecked] = useState(() => LS("sv5"));
-  const [coll, setColl] = useState({
-    SLEEP: true,
-    BREAK: false
-  });
+  const [coll, setColl] = useState({ SLEEP: true, BREAK: false });
+  // ── TODAY ATTENDANCE IMPROVEMENTS ─────────────────────────────────────────
+  const [attTarget, setAttTarget] = useState(() => parseInt(localStorage.getItem("att_target")||"80"));
+  const [aiMorning, setAiMorning] = useState(null);
+  const [aiMorningLoading, setAiMorningLoading] = useState(false);
+  const [skipReasons, setSkipReasons] = useState(() => { try{return JSON.parse(localStorage.getItem("skip_reasons")||"{}")}catch{return{}} });
+  const [skipModal, setSkipModal] = useState(null); // { k, label, time }
+  const [nowMins, setNowMins] = useState(() => { const n=new Date(); return n.getHours()*60+n.getMinutes(); });
+  const [progFilter, setProgFilter] = useState("ALL"); // programme filter for Today blocks
   const [di, setDi] = useState(() => {
     const d = new Date().getDay();
     return d === 0 ? 6 : d - 1;
@@ -861,6 +929,41 @@ function App() {
           const merged = { ...LS("reviews_v1") };
           reviews.forEach(r => { merged[r.week] = { win: r.win, skipped: r.skipped, energy: r.energy, different: r.different, rating: r.rating, blocksDone: r.blocks_done, blocksTotal: r.blocks_total, done: true }; });
           LSS("reviews_v1", merged);
+        }
+        // Pipeline opps
+        const pOpps = await supa.get("pipeline_opps", `user_id=eq.${DEVICE_ID}`);
+        if (pOpps?.length) {
+          const merged = {};
+          pOpps.forEach(o => { merged[o.id] = { id: o.id, title: o.title, org: o.org, type: o.type, col: o.col, note: o.note, deadline: o.deadline, url: o.url, date: o.date }; });
+          LSS("pipeline_opps", merged);
+        }
+        // Pipeline grades
+        const pGrades = await supa.get("pipeline_grades", `user_id=eq.${DEVICE_ID}`);
+        if (pGrades?.length) {
+          const merged = { ...LS("pipeline_grades") };
+          pGrades.forEach(g => { merged[g.subject_id] = { scores: g.scores }; });
+          LSS("pipeline_grades", merged);
+        }
+        // Pipeline papers
+        const pPapers = await supa.get("pipeline_papers", `user_id=eq.${DEVICE_ID}`);
+        if (pPapers?.length) {
+          const merged = {};
+          pPapers.forEach(p => { merged[p.id] = { id: p.id, mod: p.mod, year: p.year, score: p.score, note: p.note }; });
+          LSS("pipeline_papers", merged);
+        }
+        // Exam events
+        const examEvts = await supa.get("exam_events", `user_id=eq.${DEVICE_ID}`);
+        if (examEvts?.length) {
+          const merged = { ...LS("exam_events_v1") };
+          examEvts.forEach(e => { merged[e.id] = { id: e.id, title: e.title, date: e.date, type: e.type, subjects: e.subjects || [], note: e.note }; });
+          LSS("exam_events_v1", merged);
+        }
+        // Exam sessions
+        const examSess = await supa.get("exam_sessions", `user_id=eq.${DEVICE_ID}`);
+        if (examSess?.length) {
+          const merged = { ...LS("exam_sessions_v1") };
+          examSess.forEach(s => { merged[s.id] = { id: s.id, sub: s.sub, secs: s.secs, date: s.date }; });
+          LSS("exam_sessions_v1", merged);
         }
       } catch (e) { console.log("Supabase pull failed:", e); }
     };
@@ -939,8 +1042,15 @@ function App() {
   });
   const [intentEdit, setIntentEdit] = useState(false);
   const saveIntention = (text) => {
-    const data = { date: new Date().toISOString().slice(0,10), text };
+    const today = new Date().toISOString().slice(0,10);
+    const data = { date: today, text };
     localStorage.setItem("daily_intention", JSON.stringify(data));
+    // also persist to history map
+    try {
+      const hist = JSON.parse(localStorage.getItem("daily_intentions_hist") || "{}");
+      if (text.trim()) hist[today] = text.trim();
+      localStorage.setItem("daily_intentions_hist", JSON.stringify(hist));
+    } catch {}
     setIntention(text);
     setIntentEdit(false);
   };
@@ -958,6 +1068,42 @@ function App() {
   const delMust = i => {
     saveMust(todayMust.filter((_, j) => j !== i));
   };
+  const reorderMust = (i, dir) => {
+    const t = [...todayMust];
+    const j = i + dir;
+    if (j < 0 || j >= t.length) return;
+    [t[i], t[j]] = [t[j], t[i]];
+    saveMust(t);
+  };
+  // Journal history
+  const [showJournal, setShowJournal] = useState(false);
+  const journalHistory = useMemo(() => {
+    const entries = [];
+    const notes = LS("block_notes_v1");
+    const mustAll = LS("must_do_v1");
+    const intentions = (() => { try { return JSON.parse(localStorage.getItem("daily_intentions_hist") || "{}"); } catch { return {}; } })();
+    // Group block notes by date (key format: wk_time_day)
+    const notesByDate = {};
+    Object.entries(notes).forEach(([k, v]) => {
+      if (!v) return;
+      // Extract date from week key (first 10 chars are yyyy-mm-dd)
+      const datePart = k.slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+        if (!notesByDate[datePart]) notesByDate[datePart] = [];
+        const timePart = k.split("_")[1] || "";
+        const dayPart = k.split("_")[2] || "";
+        notesByDate[datePart].push({ time: timePart, day: dayPart, note: v });
+      }
+    });
+    const allDates = new Set([...Object.keys(mustAll), ...Object.keys(intentions), ...Object.keys(notesByDate)]);
+    [...allDates].sort((a,b) => b.localeCompare(a)).slice(0,60).forEach(date => {
+      const must = mustAll[date] || [];
+      const intention = intentions[date] || "";
+      const blockNotesList = notesByDate[date] || [];
+      if (must.length || intention || blockNotesList.length) entries.push({ date, must, intention, blockNotesList });
+    });
+    return entries;
+  }, [showJournal]);
   const todayStr = new Date().toISOString().slice(0, 10);
 
   // Streak — count consecutive days with at least 1 tick
@@ -1013,6 +1159,37 @@ function App() {
       }))
       .filter(b => !checked[b.k] && !dismissedMissed[b.k]);
   }, [slots, checked, dismissedMissed]);
+
+  // ── LIVE CLOCK ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const iv = setInterval(() => { const n=new Date(); setNowMins(n.getHours()*60+n.getMinutes()); }, 30000);
+    return () => clearInterval(iv);
+  }, []);
+
+  // ── AI MORNING BRIEFING ───────────────────────────────────────────────────
+  const fetchMorningBriefing = async () => {
+    setAiMorningLoading(true);
+    const toMins = t => { const [h,m]=t.split(":").map(Number); return h*60+m; };
+    const todayKey = new Date().toISOString().slice(0,10);
+    const slots2 = slots || [];
+    const dd2 = DAYS[(new Date().getDay()+6)%7];
+    const todayBlocks = slots2.filter(s=>s[dd2]&&!LIFE.has(s[dd2].type)&&s.sec!=="SLEEP").map(s=>({time:s.time,label:s[dd2].label,prog:BM[s[dd2].type]?.p||s[dd2].type,done:!!checked[ck(s.time,dd2)]}));
+    const remaining = todayBlocks.filter(b=>!b.done&&toMins(b.time)>=nowMins);
+    const dls = Object.values(LS("deadlines_v1")).filter(d=>d.date>=todayKey).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,3);
+    const prompt = `You are Junior Kabelo Motsoko's personal study coach. Today is ${new Date().toLocaleDateString("en-ZA",{weekday:"long",day:"numeric",month:"long"})}.
+
+Remaining blocks today: ${remaining.map(b=>`${b.time} ${b.label} (${b.prog})`).join(", ")||"none"}
+Completed so far: ${todayBlocks.filter(b=>b.done).length}/${todayBlocks.length} blocks
+Upcoming deadlines: ${dls.map(d=>`${d.title} due ${d.date}`).join(", ")||"none"}
+Weekly attendance: ${weekSummary.pct}%
+
+Give a SHORT motivational morning/afternoon briefing (max 60 words, 2-3 sentences). Be specific to his actual schedule today. Direct, energising, South African. No fluff.`;
+    try {
+      const text = await gemini(prompt, 120);
+      setAiMorning({ text, date: todayKey });
+    } catch(e) { setAiMorning({ text: "Could not load briefing — check Gemini key.", date: todayKey }); }
+    setAiMorningLoading(false);
+  };
 
   // Weekly summary — detailed breakdown
   const weekSummary = useMemo(() => {
@@ -1209,11 +1386,39 @@ function App() {
     i: "📓",
     l: "Review"
   }, {
+    k: "stats",
+    i: "📊",
+    l: "Stats"
+  }, {
     k: "notifs",
     i: "🔔",
     l: "Alerts"
   }];
   if (loading) return /*#__PURE__*/React.createElement(Skeleton, null);
+  if (!onboarded) {
+    const steps = [
+      { emoji: "👋", title: "Welcome, Junior!", body: "Your Master Schedule is a single app for your studies, Amazon prep, deadlines, and career pipeline.\n\nEverything syncs to the cloud so you never lose data.", action: "Let's go →" },
+      { emoji: "📅", title: "Your Schedule", body: "The Schedule tab shows your full weekly timetable.\n\nTap any cell to mark attendance. Long-press to add notes. Use the ✏️ Edit Mode to customise it.", action: "Got it →" },
+      { emoji: "📋", title: "Deadlines & Pipeline", body: "Add all your upcoming tests, assignments, and ALX submissions in Deadlines.\n\nTrack internships and opportunities in Pipeline — it syncs grades and past papers too.", action: "Almost done →" },
+      { emoji: "🚀", title: "You're all set!", body: "Start by setting today's intention, ticking off your schedule blocks, and adding your first deadline.\n\nEverything saves automatically.", action: "Open the app ✅" }
+    ];
+    const step = steps[onboardStep];
+    return React.createElement("div", { style: { position: "fixed", inset: 0, background: "var(--bg)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px", textAlign: "center" } },
+      React.createElement("div", { style: { fontSize: 64, marginBottom: 24 } }, step.emoji),
+      React.createElement("div", { style: { fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 16 } }, step.title),
+      React.createElement("div", { style: { fontSize: 15, color: "var(--txt2)", lineHeight: 1.7, marginBottom: 48, maxWidth: 320, whiteSpace: "pre-line" } }, step.body),
+      React.createElement("button", {
+        onClick: () => {
+          if (onboardStep < steps.length - 1) { setOnboardStep(s => s + 1); }
+          else { localStorage.setItem("onboarded_v1", "1"); setOnboarded(true); }
+        },
+        style: { fontFamily: "inherit", fontSize: 16, fontWeight: 700, padding: "14px 40px", borderRadius: 99, background: "var(--acc)", color: "#000", border: "none", cursor: "pointer", boxShadow: "0 4px 20px rgba(0,229,160,0.3)" }
+      }, step.action),
+      React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 24 } },
+        steps.map((_, i) => React.createElement("div", { key: i, style: { width: i === onboardStep ? 20 : 6, height: 6, borderRadius: 99, background: i === onboardStep ? "var(--acc)" : "var(--bdr2)", transition: "all .3s" } }))
+      )
+    );
+  }
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : "hour" < 17 ? "Good afternoon" : "Good evening";
   const greetEmoji = hour < 5 ? "🌙" : hour < 12 ? "🌅" : hour < 17 ? "☀️" : hour < 20 ? "🌆" : "🌙";
@@ -1261,39 +1466,49 @@ function App() {
     month: "long",
     year: "numeric"
   }))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 8,
-      alignItems: "center"
-    }
-  }, /*#__PURE__*/React.createElement("label", {
+    style: { display: "flex", gap: 8, alignItems: "center" }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-ghost btn-sm",
+    onClick: () => { setShowGlobalSearch(true); setGlobalQuery(""); },
+    style: { fontSize: 16, padding: "5px 9px" },
+    title: "Search everywhere"
+  }, "🔍"), /*#__PURE__*/React.createElement("label", {
     className: "ios-toggle",
     title: "Toggle theme"
   }, /*#__PURE__*/React.createElement("input", {
     type: "checkbox",
     checked: theme === "light",
-    onChange: e => setTheme(e.target.checked ? "light" : "dark")
+    onChange: e => { setAutoTheme(false); localStorage.setItem("auto_theme","0"); setTheme(e.target.checked ? "light" : "dark"); }
   }), /*#__PURE__*/React.createElement("div", {
     className: "toggle-track"
   }), /*#__PURE__*/React.createElement("div", {
     className: "toggle-thumb"
   })), /*#__PURE__*/React.createElement("button", {
     className: "btn btn-ghost btn-sm",
+    title: autoTheme ? "Auto theme ON" : "Auto theme OFF",
+    onClick: () => { const next = !autoTheme; setAutoTheme(next); localStorage.setItem("auto_theme", next ? "1" : "0"); },
+    style: { fontSize: 11, padding: "4px 7px", border: autoTheme ? "1.5px solid var(--acc)" : undefined, color: autoTheme ? "var(--acc)" : undefined }
+  }, "🌓"), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-ghost btn-sm",
     onClick: () => setEra(e => e === "NOW" ? "AWS" : "NOW"),
-    style: {
-      fontSize: 13
-    }
+    style: { fontSize: 13 }
   }, era === "NOW" ? "Now" : "AWS"), /*#__PURE__*/React.createElement("button", {
     className: "btn btn-danger btn-sm",
     onClick: reset,
-    style: {
-      fontSize: 13
-    }
-  }, "\u21BA")))), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 13 }
+  }, "\u21BA")))),
+  isOffline && /*#__PURE__*/React.createElement("div", { style: { background: "var(--ora)", color: "#fff", fontSize: 12, fontWeight: 700, textAlign: "center", padding: "6px 16px", letterSpacing: "0.04em", marginBottom: 8, borderRadius: 8 } }, "📵 You're offline — changes will sync when reconnected"),
+  showPwaBar && pwaPrompt && /*#__PURE__*/React.createElement("div", { style: { background: "linear-gradient(135deg,var(--acc-dim),var(--sur2))", border: "1px solid var(--acc)44", borderRadius: 10, padding: "10px 14px", marginBottom: 10, display: "flex", alignItems: "center", gap: 10 } },
+    React.createElement("div", { style: { flex: 1 } },
+      React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "var(--acc)" } }, "📱 Add to Home Screen"),
+      React.createElement("div", { style: { fontSize: 11, color: "var(--txt3)" } }, "Install as an app for offline access")
+    ),
+    React.createElement("button", { onClick: () => { pwaPrompt.prompt(); setShowPwaBar(false); }, className: "btn btn-primary btn-sm", style: { fontSize: 11 } }, "Install"),
+    React.createElement("button", { onClick: () => setShowPwaBar(false), style: { background: "transparent", border: "none", fontSize: 16, color: "var(--txt3)", cursor: "pointer", padding: "0 4px" } }, "✕")
+  ),
+  /*#__PURE__*/React.createElement("div", {
     className: "chips",
-    style: {
-      marginBottom: 20
-    }
+    style: { marginBottom: 20 }
   }, [["ECP", hrs.ECP, "var(--blue)"], ["UNISA", hrs.UNISA, "var(--acc)"], ["ALX", hrs.ALX, "var(--ora)"], ["AMAZON", hrs.AMAZON, "var(--gold)"], ["AWS/ML", hrs.AWS_ML, "#ff9900"], ["TOTAL", tot, "#ffffff"]].map(_ref => {
     let [l, v, c] = _ref;
     return /*#__PURE__*/React.createElement("div", {
@@ -1518,7 +1733,19 @@ function App() {
       fontSize: 11,
       color: "var(--txt2)"
     }
-  }, weekSummary.pct >= 70 ? "Excellent week — keep the momentum 🔥" : weekSummary.pct >= 40 ? "Solid effort — push harder in the second half ⚡" : "Behind pace — pick 3 subjects and lock in today 💪")), di === (new Date().getDay() + 6) % 7 && yesterday.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, weekSummary.pct >= 70 ? "Excellent week — keep the momentum 🔥" : weekSummary.pct >= 40 ? "Solid effort — push harder in the second half ⚡" : "Behind pace — pick 3 subjects and lock in today 💪"),
+  // Skip reason patterns
+  (() => {
+    const reasons = Object.values(skipReasons);
+    if (!reasons.length) return null;
+    const freq = {};
+    reasons.forEach(r => { freq[r]=(freq[r]||0)+1; });
+    const top = Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,2);
+    return React.createElement("div", { style: { marginTop: 8, padding: "8px 10px", background: "rgba(255,77,109,0.06)", borderRadius: 8 } },
+      React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "var(--red)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 } }, "⚠️ Top skip reasons"),
+      top.map(([r,n]) => React.createElement("div", { key: r, style: { fontSize: 12, color: "var(--txt2)" } }, `${r}: ${n}x`))
+    );
+  })()), di === (new Date().getDay() + 6) % 7 && yesterday.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "card",
     style: { marginBottom: 12, overflow: "hidden" }
   },
@@ -1554,12 +1781,113 @@ function App() {
           style: { fontFamily: "inherit", fontSize: 11, fontWeight: 700, padding: "5px 12px", borderRadius: 99, border: "1.5px solid var(--acc)", background: "var(--acc-dim)", color: "var(--acc)", cursor: "pointer", flexShrink: 0 }
         }, "✓ I was there"),
         /*#__PURE__*/React.createElement("button", {
-          onClick: () => dismissMissed(b.k),
+          onClick: () => setSkipModal({ k: b.k, label: b.label, time: b.time }),
           style: { background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--txt3)", padding: "0 4px", flexShrink: 0 }
         }, "×")
       );
     })
-  ), /*#__PURE__*/React.createElement(TodayAnalytics, { checked, slots }), /*#__PURE__*/React.createElement("div", {
+  ), /*#__PURE__*/React.createElement(TodayAnalytics, { checked, slots }),
+  // Journal History button
+  React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 12 } },
+    React.createElement("button", { className: "btn btn-ghost btn-sm", style: { flex: 1, fontSize: 12 }, onClick: () => setShowJournal(true) }, "📖 Journal History"),
+    React.createElement("button", { className: "btn btn-ghost btn-sm", style: { flex: 1, fontSize: 12 }, onClick: () => setFocusMode(true) }, "🎯 Focus Mode")
+  ),
+  // Focus Mode overlay
+  focusMode && React.createElement("div", { style: { position: "fixed", inset: 0, background: "var(--bg)", zIndex: 250, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32 } },
+    React.createElement("button", { onClick: () => setFocusMode(false), style: { position: "absolute", top: 20, right: 20, background: "transparent", border: "none", fontSize: 28, cursor: "pointer", color: "var(--txt3)" } }, "✕"),
+    (() => {
+      const now = new Date();
+      const nowMins = now.getHours() * 60 + now.getMinutes();
+      const toMins = t => { const [h,m] = t.split(":").map(Number); return h*60+m; };
+      const currentBlock = tblocks.find(b => {
+        const bMins = toMins(b.time);
+        return nowMins >= bMins && nowMins < bMins + 60;
+      });
+      const nextBlock = tblocks.find(b => toMins(b.time) > nowMins);
+      const minsToNext = nextBlock ? toMins(nextBlock.time) - nowMins : null;
+      return React.createElement("div", { style: { textAlign: "center", width: "100%", maxWidth: 360 } },
+        React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 24 } }, "FOCUS MODE"),
+        intention && React.createElement("div", { style: { fontSize: 16, fontStyle: "italic", color: "var(--txt2)", marginBottom: 32, lineHeight: 1.5 } }, "\u201C", intention, "\u201D"),
+        currentBlock
+          ? React.createElement("div", null,
+              React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "var(--acc)", marginBottom: 8, letterSpacing: "0.06em" } }, "NOW"),
+              React.createElement("div", { style: { fontSize: 48, fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1, marginBottom: 8 } }, currentBlock.label || currentBlock.type),
+              React.createElement("div", { style: { fontSize: 14, color: "var(--txt2)", marginBottom: 32 } }, currentBlock.time)
+            )
+          : React.createElement("div", { style: { fontSize: 24, fontWeight: 700, color: "var(--txt3)", marginBottom: 32 } }, "No block right now"),
+        nextBlock && React.createElement("div", { style: { padding: "12px 20px", background: "var(--sur2)", borderRadius: 12 } },
+          React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", marginBottom: 4 } }, "NEXT"),
+          React.createElement("div", { style: { fontSize: 18, fontWeight: 700 } }, nextBlock.label || nextBlock.type),
+          React.createElement("div", { style: { fontSize: 13, color: "var(--txt2)", marginTop: 2 } }, nextBlock.time, minsToNext !== null ? ` · in ${minsToNext}min` : "")
+        ),
+        todayMust.filter(t => !t.done).length > 0 && React.createElement("div", { style: { marginTop: 32 } },
+          React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", marginBottom: 12 } }, "STILL TO DO"),
+          todayMust.filter(t => !t.done).map((t, i) =>
+            React.createElement("div", { key: i, style: { fontSize: 15, fontWeight: 600, marginBottom: 8, color: "var(--txt)" } }, t.pri, " ", t.t)
+          )
+        )
+      );
+    })()
+  ),
+  // Journal History Modal
+  showJournal && React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200, display: "flex", flexDirection: "column" }, onClick: () => setShowJournal(false) },
+    React.createElement("div", { style: { marginTop: "auto", background: "var(--sur)", borderRadius: "20px 20px 0 0", maxHeight: "80vh", overflow: "hidden", display: "flex", flexDirection: "column" }, onClick: e => e.stopPropagation() },
+      React.createElement("div", { style: { padding: "16px 20px 8px", borderBottom: "0.5px solid var(--sep)", display: "flex", justifyContent: "space-between", alignItems: "center" } },
+        React.createElement("div", { style: { fontSize: 17, fontWeight: 700 } }, "📖 Journal History"),
+        React.createElement("button", { onClick: () => setShowJournal(false), style: { background: "transparent", border: "none", fontSize: 18, color: "var(--txt3)", cursor: "pointer" } }, "✕")
+      ),
+      React.createElement("div", { style: { overflowY: "auto", padding: "12px 16px", flex: 1 } },
+        journalHistory.length === 0
+          ? React.createElement("div", { style: { textAlign: "center", padding: 32, color: "var(--txt3)", fontSize: 14 } }, "No journal entries yet.\nStart by setting a daily intention.")
+          : journalHistory.map(entry =>
+              React.createElement("div", { key: entry.date, style: { marginBottom: 16, paddingBottom: 16, borderBottom: "0.5px solid var(--sep)" } },
+                React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: "var(--acc)", marginBottom: 6 } },
+                  new Date(entry.date + "T00:00:00").toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long" })
+                ),
+                entry.intention && React.createElement("div", { style: { fontSize: 13, fontStyle: "italic", color: "var(--txt2)", marginBottom: 6, paddingLeft: 8, borderLeft: "2px solid var(--acc)" } }, "\u201C", entry.intention, "\u201D"),
+                entry.must.length > 0 && React.createElement("div", null,
+                  entry.must.map((t, i) =>
+                    React.createElement("div", { key: i, style: { fontSize: 13, display: "flex", alignItems: "center", gap: 6, marginBottom: 3 } },
+                      React.createElement("span", null, t.done ? "✅" : "⬜"),
+                      React.createElement("span", { style: { color: t.done ? "var(--txt3)" : "var(--txt)", textDecoration: t.done ? "line-through" : "none" } }, t.pri || "", " ", t.t)
+                    )
+                  )
+                ),
+                entry.blockNotesList && entry.blockNotesList.length > 0 && React.createElement("div", { style: { marginTop: 8 } },
+                  React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 } }, "📝 Block Notes"),
+                  entry.blockNotesList.map((n, i) =>
+                    React.createElement("div", { key: i, style: { fontSize: 12, color: "var(--txt2)", padding: "5px 8px", background: "var(--sur2)", borderRadius: 6, marginBottom: 4, borderLeft: "2px solid var(--gold)" } },
+                      React.createElement("span", { style: { fontWeight: 700, color: "var(--txt3)", marginRight: 6 } }, n.time, " ", n.day),
+                      n.note
+                    )
+                  )
+                )
+              )
+            )
+      )
+    )
+  ),
+  // ── SKIP REASON MODAL ────────────────────────────────────────────────────
+  skipModal && React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 300, display: "flex", alignItems: "flex-end" }, onClick: () => { dismissMissed(skipModal.k); setSkipModal(null); } },
+    React.createElement("div", { style: { width: "100%", background: "var(--sur)", borderRadius: "20px 20px 0 0", padding: 24 }, onClick: e => e.stopPropagation() },
+      React.createElement("div", { style: { fontSize: 15, fontWeight: 700, marginBottom: 4 } }, "Why did you miss this?"),
+      React.createElement("div", { style: { fontSize: 13, color: "var(--txt3)", marginBottom: 16 } }, skipModal.time, " · ", skipModal.label),
+      [["😴","Overslept"],["🚌","Transport"],["🤒","Sick"],["📚","Studied elsewhere"],["💡","Needed a break"],["❓","Other"]].map(([icon,label]) =>
+        React.createElement("button", { key: label,
+          onClick: () => {
+            const updated = { ...skipReasons, [skipModal.k]: label };
+            setSkipReasons(updated);
+            localStorage.setItem("skip_reasons", JSON.stringify(updated));
+            dismissMissed(skipModal.k);
+            setSkipModal(null);
+          },
+          style: { display: "block", width: "100%", textAlign: "left", padding: "12px 16px", marginBottom: 6, borderRadius: 10, border: "0.5px solid var(--bdr2)", background: "var(--sur2)", cursor: "pointer", fontFamily: "inherit", fontSize: 14, color: "var(--txt)" }
+        }, icon, " ", label)
+      ),
+      React.createElement("button", { onClick: () => { dismissMissed(skipModal.k); setSkipModal(null); }, style: { display: "block", width: "100%", textAlign: "center", padding: "12px", marginTop: 4, borderRadius: 10, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", fontSize: 13, color: "var(--txt3)" } }, "Skip without reason")
+    )
+  ),
+  /*#__PURE__*/React.createElement("div", {
     className: "card card-p",
     style: { marginBottom: 12, cursor: "pointer" },
     onClick: () => setIntentEdit(true)
@@ -1712,92 +2040,32 @@ function App() {
       width: "100%"
     },
     onClick: addMust
-  }, "Add Task")), [...(todayMust||[])].sort((a,b) => {
-    const order = {"🔴":0,"🟡":1,"🟢":2};
-    if (a.done !== b.done) return a.done ? 1 : -1;
-    return (order[a.pri]??1) - (order[b.pri]??1);
-  }).map((task, i) => /*#__PURE__*/React.createElement("div", {
+  }, "Add Task")), [...(todayMust||[])].map((task, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
     style: {
       display: "flex",
       alignItems: "center",
-      gap: 10,
-      padding: "12px 14px",
+      gap: 8,
+      padding: "10px 14px",
       borderBottom: i < todayMust.length - 1 ? "0.5px solid var(--sep)" : "none",
-      cursor: "pointer"
-    },
-    onClick: () => togMust(i)
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      width: 22,
-      height: 22,
-      borderRadius: "50%",
-      border: `2px solid ${task.done ? "var(--acc)" : "var(--bdr3)"}`,
-      background: task.done ? "var(--acc)" : "transparent",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      fontSize: 12,
-      color: "#fff",
-      fontWeight: 700,
-      flexShrink: 0,
-      transition: "all .25s cubic-bezier(.34,1.56,.64,1)"
     }
-  }, task.done ? "✓" : ""), /*#__PURE__*/React.createElement("div", {
-    style: {
-      flex: 1,
-      minWidth: 0
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 5,
-      marginBottom: 2,
-      flexWrap: "wrap"
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 13
-    }
-  }, task.pri || "🔴"), task.sub && /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 9,
-      fontWeight: 700,
-      padding: "1px 6px",
-      borderRadius: 99,
-      background: "var(--acc-dim)",
-      color: "var(--acc)"
-    }
-  }, task.sub)), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 14,
-      fontWeight: 500,
-      color: task.done ? "var(--txt3)" : "var(--txt)",
-      textDecoration: task.done ? "line-through" : "none",
-      lineHeight: 1.4
-    }
-  }, task.t)), /*#__PURE__*/React.createElement("button", {
-    onClick: e => {
-      e.stopPropagation();
-      delMust(i);
-    },
-    style: {
-      background: "transparent",
-      border: "none",
-      color: "var(--txt3)",
-      fontSize: 14,
-      cursor: "pointer",
-      padding: "4px",
-      flexShrink: 0
-    }
-  }, "\u2715"))), todayMust.length === 0 && !showMustForm && /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: "14px",
-      textAlign: "center",
-      fontSize: 13,
-      color: "var(--txt3)"
-    }
+  },
+  // Reorder arrows
+  React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 1, flexShrink: 0 } },
+    React.createElement("button", { onClick: () => reorderMust(i, -1), disabled: i === 0, style: { background: "transparent", border: "none", fontSize: 10, color: i === 0 ? "var(--bdr2)" : "var(--txt3)", cursor: i === 0 ? "default" : "pointer", padding: "1px 3px", lineHeight: 1 } }, "▲"),
+    React.createElement("button", { onClick: () => reorderMust(i, 1), disabled: i === todayMust.length - 1, style: { background: "transparent", border: "none", fontSize: 10, color: i === todayMust.length - 1 ? "var(--bdr2)" : "var(--txt3)", cursor: i === todayMust.length - 1 ? "default" : "pointer", padding: "1px 3px", lineHeight: 1 } }, "▼")
+  ),
+  React.createElement("div", { style: { width: 22, height: 22, borderRadius: "50%", border: `2px solid ${task.done ? "var(--acc)" : "var(--bdr3)"}`, background: task.done ? "var(--acc)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "#fff", fontWeight: 700, flexShrink: 0, cursor: "pointer", transition: "all .25s cubic-bezier(.34,1.56,.64,1)" }, onClick: () => togMust(i) }, task.done ? "✓" : ""),
+  React.createElement("div", { style: { flex: 1, minWidth: 0, cursor: "pointer" }, onClick: () => togMust(i) },
+    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 5, marginBottom: 2, flexWrap: "wrap" } },
+      React.createElement("span", { style: { fontSize: 13 } }, task.pri || "🔴"),
+      task.sub && React.createElement("span", { style: { fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 99, background: "var(--acc-dim)", color: "var(--acc)" } }, task.sub)
+    ),
+    React.createElement("div", { style: { fontSize: 14, fontWeight: 500, color: task.done ? "var(--txt3)" : "var(--txt)", textDecoration: task.done ? "line-through" : "none", lineHeight: 1.4 } }, task.t)
+  ),
+  React.createElement("button", { onClick: e => { e.stopPropagation(); delMust(i); }, style: { background: "transparent", border: "none", color: "var(--txt3)", fontSize: 14, cursor: "pointer", padding: "4px", flexShrink: 0 } }, "✕")
+  ), todayMust.length === 0 && !showMustForm && /*#__PURE__*/React.createElement("div", {
+    style: { padding: "14px", textAlign: "center", fontSize: 13, color: "var(--txt3)" }
   }, "Set your 3 priorities for today.")), /*#__PURE__*/React.createElement("div", {
     className: "hero",
     style: {
@@ -1918,8 +2186,95 @@ function App() {
       fontSize: 12,
       color: "var(--txt2)"
     }
-  }, pct < 30 ? "Early. Keep pushing." : pct < 60 ? "Halfway. Don't ease up." : pct < 80 ? "Almost there." : "So close. Finish strong.")), (() => {
-    const next = tblocks.find(b => !checked[b.k]);
+  }, pct < 30 ? "Early. Keep pushing." : pct < 60 ? "Halfway. Don't ease up." : pct < 80 ? "Almost there." : "So close. Finish strong.")),
+
+  // ── AI MORNING BRIEFING ──────────────────────────────────────────────────
+  React.createElement("div", { className: "card card-p", style: { marginBottom: 12, background: "linear-gradient(135deg,var(--bg2),var(--sur))", border: "1px solid var(--acc)33" } },
+    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: aiMorning?.date===new Date().toISOString().slice(0,10)?8:0 } },
+      React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: "var(--acc)" } }, "☀️ Daily Briefing"),
+      React.createElement("button", { onClick: fetchMorningBriefing, disabled: aiMorningLoading, className: "btn btn-ghost btn-sm", style: { fontSize: 11 } },
+        aiMorningLoading ? "Loading…" : aiMorning?.date===new Date().toISOString().slice(0,10) ? "Refresh" : "Generate"
+      )
+    ),
+    aiMorning?.date===new Date().toISOString().slice(0,10) && React.createElement("div", { style: { fontSize: 13, color: "var(--txt2)", lineHeight: 1.65 } }, aiMorning.text)
+  ),
+
+  // ── ATTENDANCE TARGET + FORECAST ─────────────────────────────────────────
+  React.createElement("div", { className: "card card-p", style: { marginBottom: 12 } },
+    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 } },
+      React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", letterSpacing: "0.08em" } }, "🎯 Daily Target"),
+      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+        React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: pct >= attTarget ? "var(--acc)" : "var(--red)" } },
+          pct >= attTarget ? "✅ On track" : `${attTarget - pct}% to go`
+        ),
+        React.createElement("div", { style: { fontSize: 12, color: "var(--txt3)", fontFamily: "var(--mono)" } }, `${attTarget}%`)
+      )
+    ),
+    React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", marginBottom: 8 } },
+      React.createElement("div", { className: "pbar", style: { flex: 1, height: 8, borderRadius: 99 } },
+        React.createElement("div", { className: "pbar-fill", style: { width: `${pct}%`, height: "100%", background: pct>=attTarget?"var(--acc)":pct>=attTarget*0.7?"var(--gold)":"var(--red)", borderRadius: 99 } })
+      ),
+      React.createElement("div", { style: { fontSize: 11, fontFamily: "var(--mono)", color: "var(--txt3)", flexShrink: 0 } }, `${pct}%`)
+    ),
+    // Target slider
+    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+      React.createElement("span", { style: { fontSize: 11, color: "var(--txt3)" } }, "Target:"),
+      React.createElement("input", { type: "range", min: 50, max: 100, step: 5, value: attTarget,
+        onChange: e => { const v=parseInt(e.target.value); setAttTarget(v); localStorage.setItem("att_target", v); },
+        style: { flex: 1, accentColor: "var(--acc)", cursor: "pointer" }
+      }),
+      React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: "var(--acc)", minWidth: 32 } }, `${attTarget}%`)
+    ),
+    // Weekly forecast
+    (() => {
+      const toMins2 = t => { const [h,m]=t.split(":").map(Number); return h*60+m; };
+      const blocksLeft = tblocks.filter(b=>!checked[b.k]&&toMins2(b.time)>nowMins).length;
+      const blocksRemDays = (() => {
+        let rem = 0;
+        const curDayIdx = (new Date().getDay()+6)%7;
+        for (let d2=curDayIdx+1; d2<7; d2++) {
+          const dd3 = DAYS[d2];
+          rem += (slots||[]).filter(s=>s[dd3]&&!LIFE.has(s[dd3].type)&&s.sec!=="SLEEP").length;
+        }
+        return rem;
+      })();
+      const weekDone = weekSummary.done;
+      const weekTotal = weekSummary.total;
+      const projectedDone = weekDone + blocksLeft + blocksRemDays;
+      const projPct = weekTotal ? Math.round(projectedDone/weekTotal*100) : 0;
+      if (!weekTotal) return null;
+      return React.createElement("div", { style: { marginTop: 8, padding: "6px 8px", background: "var(--sur2)", borderRadius: 6, fontSize: 12, color: "var(--txt2)" } },
+        "📈 Forecast: ",
+        React.createElement("span", { style: { fontWeight: 700, color: projPct>=70?"var(--acc)":projPct>=50?"var(--gold)":"var(--red)" } }, `${projPct}%`),
+        " by end of week if you attend all remaining blocks"
+      );
+    })()
+  ),
+
+  // ── PER-PROGRAMME FILTER PILLS ────────────────────────────────────────────
+  React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" } },
+    [["ALL","All","var(--txt2)"],["ECP","ECP","var(--blue)"],["UNISA","UNISA","var(--acc)"],["ALX","ALX","var(--ora)"],["AMAZON","Amazon","var(--gold)"],["AWS","AWS","#ff9900"],["MWR","MWR","var(--red)"]].map(([key,label,color])=>{
+      const total = tblocks.filter(b=>key==="ALL"||(BM[b.type]?.p||b.type)===key).length;
+      const done2 = tblocks.filter(b=>(key==="ALL"||(BM[b.type]?.p||b.type)===key)&&checked[b.k]).length;
+      if (key!=="ALL"&&total===0) return null;
+      const isOn = progFilter===key;
+      return React.createElement("button", { key,
+        onClick: () => setProgFilter(key),
+        style: { fontFamily: "inherit", fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 99,
+          border: `1.5px solid ${isOn?color:"var(--bdr2)"}`,
+          background: isOn?`${color}22`:"transparent",
+          color: isOn?color:"var(--txt3)", cursor: "pointer",
+          display: "flex", alignItems: "center", gap: 4
+        }
+      },
+        React.createElement("span", null, label),
+        total>0 && React.createElement("span", { style: { fontFamily: "var(--mono)", fontSize: 10, opacity: 0.8 } }, `${done2}/${total}`)
+      );
+    })
+  ),
+
+  (() => {
+    const next = tblocks.filter(b=>progFilter==="ALL"||(BM[b.type]?.p||b.type)===progFilter).find(b => !checked[b.k]);
     if (!next || pct === 100) return null;
     const m = BM[next.type];
     return /*#__PURE__*/React.createElement("div", {
@@ -1994,7 +2349,7 @@ function App() {
       color: "var(--txt2)",
       marginTop: 6
     }
-  }, "Rest up and recharge. You've earned it.")) : tblocks.map((b, bi) => {
+  }, "Rest up and recharge. You've earned it.")) : tblocks.filter(b => progFilter==="ALL"||(BM[b.type]?.p||b.type)===progFilter).map((b, bi) => {
     const m = BM[b.type];
     const dn = checked[b.k];
     const isNew = justTicked === b.k;
@@ -2127,19 +2482,80 @@ function App() {
         color: "var(--txt2)",
         lineHeight: 1.5
       }
-    }, note.slice(0, 120), note.length > 120 ? "…" : "")));
-  }))), tab === "schedule" && /*#__PURE__*/React.createElement(ScheduleTab, {
+    }, note.slice(0, 120), note.length > 120 ? "…" : ""))
+      );
+    })
+  ))),
+  tab === "schedule" && /*#__PURE__*/React.createElement(ScheduleTab, {
     slots: slots, checked: checked, tog: tog, di: di, setDi: setDi,
     filter: filter, setFilter: setFilterM, wk: wk, coll: coll, setColl: setColl
-  }), tab === "amazon" && /*#__PURE__*/React.createElement(AmazonTab, null), tab === "deadlines" && /*#__PURE__*/React.createElement(DeadlinesTab, null), tab === "pipeline" && /*#__PURE__*/React.createElement(PipelineTab, null), tab === "review" && /*#__PURE__*/React.createElement(ReviewTab, {
-    checked: checked,
-    slots: slots,
-    wk: wk
-  }), tab === "notifs" && /*#__PURE__*/React.createElement(NotifsTab, {
+  }),
+  tab === "amazon" && /*#__PURE__*/React.createElement(AmazonTab, null),
+  tab === "deadlines" && /*#__PURE__*/React.createElement(DeadlinesTab, null),
+  tab === "pipeline" && /*#__PURE__*/React.createElement(PipelineTab, null),
+  tab === "review" && /*#__PURE__*/React.createElement(ReviewTab, {
+    checked: checked, slots: slots, wk: wk
+  }),
+  tab === "stats" && /*#__PURE__*/React.createElement(GlobalStatsTab, { checked: checked, slots: slots, wk: wk }),
+  tab === "notifs" && /*#__PURE__*/React.createElement(NotifsTab, {
     deadlines: Object.values(LS("deadlines_v1"))
-  }), tab === "exams" && /*#__PURE__*/React.createElement(ExamsTab, {
+  }),
+  tab === "exams" && /*#__PURE__*/React.createElement(ExamsTab, {
     mhrs: mhrs
-  }), ReactDOM.createPortal(TABS.map(t => /*#__PURE__*/React.createElement("button", {
+  }), showGlobalSearch && /*#__PURE__*/React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 300, display: "flex", flexDirection: "column" }, onClick: () => setShowGlobalSearch(false) },
+    React.createElement("div", { style: { marginTop: 60, background: "var(--sur)", borderRadius: 16, margin: "60px 16px 0", maxHeight: "75vh", display: "flex", flexDirection: "column" }, onClick: e => e.stopPropagation() },
+      React.createElement("div", { style: { padding: "12px 16px", borderBottom: "0.5px solid var(--sep)" } },
+        React.createElement("input", {
+          autoFocus: true,
+          value: globalQuery,
+          onChange: e => setGlobalQuery(e.target.value),
+          placeholder: "Search deadlines, opportunities, STAR stories…",
+          style: { width: "100%", background: "transparent", border: "none", fontSize: 16, color: "var(--txt)", outline: "none" }
+        })
+      ),
+      React.createElement("div", { style: { overflowY: "auto", padding: "8px 0", flex: 1 } }, (() => {
+        const q = globalQuery.trim().toLowerCase();
+        if (!q) return React.createElement("div", { style: { padding: "24px 16px", textAlign: "center", color: "var(--txt3)", fontSize: 14 } }, "Type to search across all tabs");
+        const results = [];
+        // Deadlines
+        Object.values(LS("deadlines_v1")).forEach(d => {
+          if ((d.title||"").toLowerCase().includes(q) || (d.note||"").toLowerCase().includes(q))
+            results.push({ tab: "deadlines", icon: "📋", title: d.title, sub: d.date + (d.done?" · Done":""), k: d.id });
+        });
+        // Pipeline opps
+        Object.values(LS("pipeline_opps")).forEach(o => {
+          if ((o.title||"").toLowerCase().includes(q) || (o.org||"").toLowerCase().includes(q) || (o.note||"").toLowerCase().includes(q))
+            results.push({ tab: "pipeline", icon: "🚀", title: o.title, sub: o.org + " · " + o.type, k: o.id });
+        });
+        // STAR stories
+        const stars = LS("az_star");
+        LP_DATA.forEach((lp, i) => {
+          if (stars[i] && stars[i].toLowerCase().includes(q))
+            results.push({ tab: "amazon", icon: "⭐", title: lp.n + " — STAR story", sub: stars[i].slice(0,60)+"…", k: "star_"+i });
+        });
+        // Must-do history
+        Object.entries(LS("must_do_v1")).forEach(([date, tasks]) => {
+          (tasks||[]).forEach((t,i) => {
+            if ((t.t||"").toLowerCase().includes(q))
+              results.push({ tab: "today", icon: "📌", title: t.t, sub: date + (t.done?" · Done":""), k: date+i });
+          });
+        });
+        if (!results.length) return React.createElement("div", { style: { padding: "24px 16px", textAlign: "center", color: "var(--txt3)", fontSize: 14 } }, "No results for \u201C" + globalQuery + "\u201D");
+        return results.map(r => React.createElement("div", {
+          key: r.k,
+          onClick: () => { setTab(r.tab); setShowGlobalSearch(false); },
+          style: { display: "flex", alignItems: "center", gap: 12, padding: "11px 16px", borderBottom: "0.5px solid var(--sep)", cursor: "pointer" }
+        },
+          React.createElement("div", { style: { fontSize: 20, flexShrink: 0 } }, r.icon),
+          React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+            React.createElement("div", { style: { fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, r.title),
+            React.createElement("div", { style: { fontSize: 12, color: "var(--txt2)", marginTop: 1 } }, r.sub)
+          ),
+          React.createElement("div", { style: { fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "var(--sur2)", color: "var(--txt3)" } }, r.tab)
+        ));
+      })())
+    )
+  ), ReactDOM.createPortal(TABS.map(t => /*#__PURE__*/React.createElement("button", {
     key: t.k,
     className: `nb${tab === t.k ? " on" : ""}`,
     onClick: () => setTab(t.k)
@@ -3092,6 +3508,13 @@ const CHEAT_SHEET = [{
 const PIPELINE_STAGES = ["Applied", "OA", "Phone Screen", "Virtual Loop", "Offer", "Rejected"];
 // ── SCHEDULE TAB COMPONENT ───────────────────────────────────────────────────
 function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, coll, setColl }) {
+  // Safety guard — if slots isn't ready yet, render nothing
+  if (!slots || !Array.isArray(slots) || slots.length === 0) {
+    return React.createElement("div", { className: "fu", style: { padding: 32, textAlign: "center", color: "var(--txt3)" } },
+      React.createElement("div", { style: { fontSize: 48, marginBottom: 16 } }, "📅"),
+      React.createElement("div", { style: { fontSize: 16, fontWeight: 600 } }, "Loading schedule…")
+    );
+  }
   const tblRef = useRef(null);
   const touchStartX = useRef(null);
   const longPressTimer = useRef(null);
@@ -3115,16 +3538,39 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
   const [customSlots, setCustomSlots] = useState(() => {
     try { return JSON.parse(localStorage.getItem("custom_slots") || "null"); } catch { return null; }
   });
+  const [slotHistory, setSlotHistory] = useState([]);
   const activeSlots = customSlots || slots;
 
+  // Conflict detection — find duplicate times across days
+  const conflicts = useMemo(() => {
+    const seen = {};
+    const found = [];
+    activeSlots.forEach(s => {
+      if (!seen[s.time]) seen[s.time] = 0;
+      seen[s.time]++;
+      if (seen[s.time] === 2) found.push(s.time);
+    });
+    return found;
+  }, [activeSlots]);
+
   const saveCustomSlots = (s) => {
+    // Push current state to undo history (keep last 10)
+    setSlotHistory(h => [...h.slice(-9), customSlots || slots]);
     setCustomSlots(s);
     localStorage.setItem("custom_slots", JSON.stringify(s));
+  };
+  const undoSlot = () => {
+    if (slotHistory.length === 0) return;
+    const prev = slotHistory[slotHistory.length - 1];
+    setSlotHistory(h => h.slice(0, -1));
+    setCustomSlots(prev);
+    localStorage.setItem("custom_slots", JSON.stringify(prev));
   };
 
   const resetToDefault = () => {
     setCustomSlots(null);
     localStorage.removeItem("custom_slots");
+    setSlotHistory([]);
   };
 
   // ── EDIT CELL ──────────────────────────────────────────────────────────────
@@ -3578,6 +4024,11 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
       }, f.l))
     ),
 
+    // Conflict warning
+    conflicts.length > 0 && React.createElement("div", { style: { background: "rgba(255,77,109,0.12)", border: "1px solid var(--red)", borderRadius: 8, padding: "8px 12px", marginBottom: 10, fontSize: 12, fontWeight: 600, color: "var(--red)" } },
+      "⚠️ Duplicate time slots detected: ", conflicts.join(", "), " — check your schedule for overlaps."
+    ),
+
     // Week progress
     React.createElement("div", { style: { marginBottom: 12 } },
       React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 } },
@@ -3618,7 +4069,8 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
         React.createElement("button", { onClick: () => setShowAddSlot(true), style: { fontFamily: "inherit", fontSize: 11, fontWeight: 600, padding: "6px 12px", borderRadius: 8, border: "1px solid var(--bdr2)", background: "var(--sur2)", color: "var(--txt2)", cursor: "pointer" } }, "➕ Add Slot"),
         React.createElement("button", { onClick: () => setShowImport(true), style: { fontFamily: "inherit", fontSize: 11, fontWeight: 600, padding: "6px 12px", borderRadius: 8, border: "1px solid var(--bdr2)", background: "var(--sur2)", color: "var(--txt2)", cursor: "pointer" } }, "📥 Import"),
         React.createElement("button", { onClick: () => setCopyDayFrom(di), style: { fontFamily: "inherit", fontSize: 11, fontWeight: 600, padding: "6px 12px", borderRadius: 8, border: "1px solid var(--bdr2)", background: "var(--sur2)", color: "var(--txt2)", cursor: "pointer" } }, `📋 Copy ${DAYS[di]}`),
-        customSlots && React.createElement("button", { onClick: () => { if (confirm("Reset to default schedule?")) resetToDefault(); }, style: { fontFamily: "inherit", fontSize: 11, fontWeight: 600, padding: "6px 12px", borderRadius: 8, border: "1px solid rgba(255,77,109,0.3)", background: "rgba(255,77,109,0.1)", color: "var(--red)", cursor: "pointer" } }, "🔄 Reset Default")
+        customSlots && React.createElement("button", { onClick: () => { if (confirm("Reset to default schedule?")) resetToDefault(); }, style: { fontFamily: "inherit", fontSize: 11, fontWeight: 600, padding: "6px 12px", borderRadius: 8, border: "1px solid rgba(255,77,109,0.3)", background: "rgba(255,77,109,0.1)", color: "var(--red)", cursor: "pointer" } }, "🔄 Reset Default"),
+        slotHistory.length > 0 && React.createElement("button", { onClick: undoSlot, style: { fontFamily: "inherit", fontSize: 11, fontWeight: 600, padding: "6px 12px", borderRadius: 8, border: "1px solid var(--bdr2)", background: "var(--sur2)", color: "var(--txt2)", cursor: "pointer" } }, "↩ Undo")
       )
     ),
 
@@ -3999,40 +4451,22 @@ function AmazonTab() {
   const sd = Object.values(star).filter(v => v?.trim()).length;
   const rd = Object.values(lpRehearsd).filter(Boolean).length;
 
-  // Mock interview via Anthropic API
+  // Mock interview via Gemini
   const runMock = async () => {
     if (!mockAnswer.trim() || mockLP === null) return;
     setMockLoading(true);
     setMockFeedback("");
     const lpItem = LP_DATA[mockLP];
+    const prompt = `You are an Amazon interviewer evaluating a STAR response. Candidate is a CS student in South Africa applying for Amazon SDE internship.\n\nLP: "${lpItem.n}"\nQuestion: "${lpItem.q}"\nAnswer: ${mockAnswer}\n\nEvaluate on STAR format and LP alignment. Under 200 words.\nFormat:\nSTAR Score: X/4\nStrengths: [2 bullets]\nImprove: [2 bullets]\nVerdict: [pass/borderline/needs work]`;
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          system: `You are an Amazon interviewer evaluating a candidate's STAR response to a Leadership Principles question. Be direct, specific and constructive. The candidate is a CS student in South Africa applying for an Amazon SDE internship. Evaluate their answer strictly on STAR format (Situation, Task, Action, Result) and alignment with the LP. Keep feedback under 200 words. Format: 
-STAR Score: X/4
-Strengths: [2 bullet points]
-Improve: [2 bullet points]
-One-line verdict: [pass/borderline/needs work]`,
-          messages: [{
-            role: "user",
-            content: `LP: "${lpItem.n}"\nQuestion: "${lpItem.q}"\n\nCandidate answer:\n${mockAnswer}`
-          }]
-        })
-      });
-      const data = await res.json();
-      setMockFeedback(data.content?.[0]?.text || "No feedback received.");
-    } catch (e) {
-      setMockFeedback("Could not connect to AI. Check your connection and try again.");
+      const text = await gemini(prompt, 400);
+      setMockFeedback(text);
+    } catch(e) {
+      setMockFeedback("Could not connect. Check your Gemini API key at aistudio.google.com");
     }
     setMockLoading(false);
   };
-  const confColor = v => v === 3 ? "var(--acc)" : v === 2 ? "var(--gold)" : v === 1 ? "var(--red)" : "var(--txt3)";
+    const confColor = v => v === 3 ? "var(--acc)" : v === 2 ? "var(--gold)" : v === 1 ? "var(--red)" : "var(--txt3)";
   const confLabel = v => v === 3 ? "Strong" : v === 2 ? "Okay" : v === 1 ? "Weak" : "—";
 
   // Mock timer
@@ -4147,7 +4581,10 @@ One-line verdict: [pass/borderline/needs work]`,
     }, l);
   })), section === "overview" && /*#__PURE__*/React.createElement("div", null, (() => {
     const upcoming = Object.values(interviews).filter(iv => iv.date && new Date(iv.date + "T00:00:00") >= new Date().setHours(0, 0, 0, 0)).sort((a, b) => new Date(a.date) - new Date(b.date));
-    const next = upcoming[0];
+    // Also pull milestone events from Exams tab
+    const examEvents = Object.values(LS("exam_events_v1")).filter(ev => ev.date && new Date(ev.date + "T00:00:00") >= new Date().setHours(0,0,0,0)).map(ev => ({ date: ev.date, stage: ev.type === "milestone" ? "Interview" : "Exam", company: ev.title, role: ev.note || "", id: "exam_"+ev.id }));
+    const allUpcoming = [...upcoming, ...examEvents].sort((a,b) => new Date(a.date) - new Date(b.date));
+    const next = allUpcoming[0];
     const days = next ? Math.max(0, Math.ceil((new Date(next.date + "T00:00:00") - new Date().setHours(0, 0, 0, 0)) / 86400000)) : null;
     const overallReady = Math.round(lcd / LC_DATA.length * 25 + lpd / LP_DATA.length * 25 + rd / LP_DATA.length * 25 + sd / LP_DATA.length * 25);
     const readyColor = overallReady >= 80 ? "var(--acc)" : overallReady >= 50 ? "var(--gold)" : overallReady >= 25 ? "var(--ora)" : "var(--red)";
@@ -5892,6 +6329,7 @@ function DeadlinesTab() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [calMonth, setCalMonth] = useState(() => { const d=new Date(); return {y:d.getFullYear(),m:d.getMonth()}; });
   const [selected, setSelected] = useState(null);
+  const [dlProgFilter, setDlProgFilter] = useState("ALL");
 
   const TEMPLATES = [
     { title:"Test", type:"PHY", note:"Study all topics, do past papers" },
@@ -5950,9 +6388,25 @@ function DeadlinesTab() {
   };
 
   const toggleDone = id => {
-    const n = { ...deadlines, [id]: { ...deadlines[id], done: !deadlines[id].done } };
+    const dl = deadlines[id];
+    const nowDone = !dl.done;
+    let n = { ...deadlines, [id]: { ...dl, done: nowDone } };
+    // Auto-generate next occurrence when marking a recurring deadline done
+    if (nowDone && dl.repeat && dl.repeat !== "none") {
+      const existing = Object.values(n);
+      const nextDate = new Date(dl.date + "T00:00:00");
+      const daysAdd = dl.repeat === "weekly" ? 7 : dl.repeat === "biweekly" ? 14 : 30;
+      nextDate.setDate(nextDate.getDate() + daysAdd);
+      const nextDateStr = nextDate.toISOString().slice(0, 10);
+      const alreadyExists = existing.some(d => d.title === dl.title && d.date === nextDateStr);
+      if (!alreadyExists) {
+        const nextId = "recur_" + Date.now();
+        n[nextId] = { ...dl, id: nextId, date: nextDateStr, done: false, created: new Date().toISOString() };
+        syncToSupa("deadlines", { id: nextId, user_id: DEVICE_ID, title: dl.title, date: nextDateStr, type: dl.type, note: dl.note, done: false });
+      }
+    }
     setDeadlines(n); LSS("deadlines_v1", n);
-    syncToSupa("deadlines", { id, user_id: DEVICE_ID, ...deadlines[id], done: !deadlines[id].done });
+    syncToSupa("deadlines", { id, user_id: DEVICE_ID, ...dl, done: nowDone });
     if (navigator.vibrate) navigator.vibrate(30);
   };
 
@@ -6121,8 +6575,60 @@ function DeadlinesTab() {
     React.createElement("div", {style:{display:"flex",gap:8,marginBottom:12}},
       React.createElement("button", {className:"btn btn-primary",style:{flex:1},onClick:()=>{setShowing(showing==="form"?"list":"form");setEditId(null);setForm(EMPTY_FORM);}},
         showing==="form"?"✕ Cancel":(editId?"✏️ Editing...":"+ Add Deadline")),
+      React.createElement("button", {className:`btn btn-ghost btn-sm${showing==="cal"?" on":""}`,onClick:()=>setShowing(s=>s==="cal"?"list":"cal"),style:{border:showing==="cal"?"1.5px solid var(--acc)":undefined,color:showing==="cal"?"var(--acc)":undefined}}, "📆"),
       React.createElement("button", {className:"btn btn-ghost btn-sm",onClick:()=>setBulkMode(b=>!b),style:{border:bulkMode?"1.5px solid var(--gold)":undefined,color:bulkMode?"var(--gold)":undefined}}, bulkMode?"✕ Exit":"☑ Bulk")
     ),
+
+    // Calendar View
+    showing==="cal" && React.createElement("div", {style:{marginBottom:12}}, (() => {
+      const { y, m } = calMonth;
+      const firstDay = new Date(y, m, 1).getDay(); // 0=Sun
+      const daysInMonth = new Date(y, m+1, 0).getDate();
+      const dlMap = {};
+      Object.values(deadlines).filter(d=>!d.done&&!d.archived).forEach(d=>{
+        const [dy,dm,dd] = d.date.split("-").map(Number);
+        if(dy===y&&dm===m+1) { const k=dd; if(!dlMap[k]) dlMap[k]=[]; dlMap[k].push(d); }
+      });
+      const todayD = new Date(); const isToday = (d)=>todayD.getFullYear()===y&&todayD.getMonth()===m&&todayD.getDate()===d;
+      const DAY_LABELS = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+      const cells = [];
+      for(let i=0;i<(firstDay===0?0:firstDay);i++) cells.push(null);
+      for(let d=1;d<=daysInMonth;d++) cells.push(d);
+      return React.createElement("div", null,
+        React.createElement("div", {style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}},
+          React.createElement("button", {onClick:()=>setCalMonth(({y,m})=>m===0?{y:y-1,m:11}:{y,m:m-1}),style:{background:"transparent",border:"none",fontSize:18,cursor:"pointer",color:"var(--txt2)",padding:"0 6px"}}, "‹"),
+          React.createElement("div", {style:{fontSize:15,fontWeight:700}}, new Date(y,m,1).toLocaleDateString("en-ZA",{month:"long",year:"numeric"})),
+          React.createElement("button", {onClick:()=>setCalMonth(({y,m})=>m===11?{y:y+1,m:0}:{y,m:m+1}),style:{background:"transparent",border:"none",fontSize:18,cursor:"pointer",color:"var(--txt2)",padding:"0 6px"}}, "›")
+        ),
+        React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:4}},
+          DAY_LABELS.map(d=>React.createElement("div",{key:d,style:{textAlign:"center",fontSize:10,fontWeight:700,color:"var(--txt3)",padding:"2px 0"}},d))
+        ),
+        React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}},
+          cells.map((d,i)=>React.createElement("div",{key:i,onClick:()=>d&&setSelected(selected===d?null:d),style:{minHeight:44,borderRadius:8,background:d&&selected===d?"var(--acc-dim)":d&&dlMap[d]?"rgba(255,159,10,0.12)":d&&isToday(d)?"var(--acc-dim)":"var(--sur2)",border:d&&(selected===d||isToday(d))?"1.5px solid var(--acc)":"1px solid var(--bdr2)",padding:"4px 3px",position:"relative",cursor:d?"pointer":"default"}},
+            d&&React.createElement("div",{style:{fontSize:11,fontWeight:isToday(d)?800:600,color:selected===d||isToday(d)?"var(--acc)":"var(--txt)",textAlign:"center"}},d),
+            d&&dlMap[d]&&dlMap[d].slice(0,2).map((dl,j)=>React.createElement("div",{key:j,style:{fontSize:9,fontWeight:600,color:dl.priority==="🔴"?"var(--red)":dl.priority==="🟢"?"var(--acc)":"var(--gold)",lineHeight:1.2,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",marginTop:1}},dl.title)),
+            d&&dlMap[d]&&dlMap[d].length>2&&React.createElement("div",{style:{fontSize:8,color:"var(--txt3)"}},"+",dlMap[d].length-2," more")
+          ))
+        ),
+        selected && React.createElement("div", {style:{marginTop:10,padding:"10px 12px",background:"var(--sur2)",borderRadius:10,border:"1px solid var(--bdr2)"}},
+          React.createElement("div",{style:{fontSize:12,fontWeight:700,marginBottom:8,color:"var(--acc)"}},
+            new Date(y,m,selected).toLocaleDateString("en-ZA",{weekday:"long",day:"numeric",month:"long"})," — ",
+            (dlMap[selected]||[]).length," deadline",(dlMap[selected]||[]).length!==1?"s":""
+          ),
+          (dlMap[selected]||[]).length===0
+            ? React.createElement("div",{style:{fontSize:13,color:"var(--txt3)"}}, "Nothing due this day 🎉")
+            : (dlMap[selected]||[]).map(dl=>React.createElement("div",{key:dl.id,style:{display:"flex",alignItems:"center",gap:8,marginBottom:6,padding:"6px 8px",background:"var(--sur)",borderRadius:8,border:"0.5px solid var(--sep)"}},
+                React.createElement("span",{style:{fontSize:14}},dl.priority||"🟡"),
+                React.createElement("div",{style:{flex:1}},
+                  React.createElement("div",{style:{fontSize:13,fontWeight:600,color:dl.done?"var(--txt3)":"var(--txt)",textDecoration:dl.done?"line-through":"none"}},dl.title),
+                  dl.time&&React.createElement("div",{style:{fontSize:11,color:"var(--txt3)"}},dl.time)
+                ),
+                React.createElement("button",{onClick:()=>toggleDone(dl.id),style:{fontFamily:"inherit",fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:99,border:`1px solid ${dl.done?"var(--acc)":"var(--bdr2)"}`,background:dl.done?"var(--acc-dim)":"transparent",color:dl.done?"var(--acc)":"var(--txt3)",cursor:"pointer"}},dl.done?"✓ Done":"Mark done")
+              ))
+        ),
+        React.createElement("div", {style:{fontSize:11,color:"var(--txt3)",textAlign:"center",marginTop:8}}, "Tap a date to see deadlines")
+      );
+    })()),
 
     // Bulk bar
     bulkMode && selectedIds.size>0 && React.createElement("div", {className:"card card-p",style:{marginBottom:12,display:"flex",gap:8,alignItems:"center"}},
@@ -6184,16 +6690,58 @@ function DeadlinesTab() {
       )
     ),
 
-    // Overdue
-    showing!=="form" && overdue.length>0 && React.createElement("div", {style:{marginBottom:12}},
-      React.createElement("div", {style:{fontSize:10,fontWeight:700,color:"var(--red)",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:6}}, "⛔ Overdue"),
-      React.createElement("div", {className:"card",style:{overflow:"hidden"}}, overdue.map(renderDeadline))
+    // Programme filter pills
+    showing!=="form" && React.createElement("div", {style:{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}},
+      [["ALL","All"],["PHY","PHY"],["ISC153","ISC153"],["MAM151","MAM151"],["COS1511","COS1511"],["COS1512","COS1512"],["ALX","ALX"],["AWS","AWS"],["AMAZON","Amazon"],["MWR","MWR"]].map(([k,l]) => {
+        const count = k==="ALL" ? upcoming.length : upcoming.filter(d=>d.type===k).length;
+        if (k!=="ALL" && count===0) return null;
+        return React.createElement("button", {key:k, onClick:()=>setDlProgFilter(k),
+          style:{fontFamily:"inherit",fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:99,
+            border:`1.5px solid ${dlProgFilter===k?"var(--acc)":"var(--bdr2)"}`,
+            background:dlProgFilter===k?"var(--acc-dim)":"transparent",
+            color:dlProgFilter===k?"var(--acc)":"var(--txt3)",cursor:"pointer"
+          }
+        }, l, k!=="ALL"&&React.createElement("span",{style:{fontSize:9,fontFamily:"var(--mono)",marginLeft:4,opacity:0.7}},count));
+      })
     ),
 
-    // Upcoming
-    showing!=="form" && upcoming.length>0 && React.createElement("div", {style:{marginBottom:12}},
-      React.createElement("div", {style:{fontSize:10,fontWeight:700,color:"var(--txt3)",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:6}}, "📅 Upcoming"),
-      React.createElement("div", {className:"card",style:{overflow:"hidden"}}, upcoming.map(renderDeadline))
+    // Overdue
+    showing!=="form" && overdue.filter(d=>dlProgFilter==="ALL"||d.type===dlProgFilter).length>0 && React.createElement("div", {style:{marginBottom:12}},
+      React.createElement("div", {style:{fontSize:10,fontWeight:700,color:"var(--red)",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:6}}, "⛔ Overdue"),
+      React.createElement("div", {className:"card",style:{overflow:"hidden"}}, overdue.filter(d=>dlProgFilter==="ALL"||d.type===dlProgFilter).map(renderDeadline))
+    ),
+
+    // Upcoming grouped by programme
+    showing!=="form" && dlProgFilter==="ALL" && (() => {
+      const PROG_ORDER = ["PHY","ISC153","MAM151","COS1511","COS1512","ALX","AWS","AMAZON","MWR","OTHER"];
+      const grouped = {};
+      upcoming.forEach(d => { const p=d.type||"OTHER"; if(!grouped[p]) grouped[p]=[]; grouped[p].push(d); });
+      const sortedProgs = PROG_ORDER.filter(p=>grouped[p]?.length);
+      const rest = Object.keys(grouped).filter(p=>!PROG_ORDER.includes(p));
+      return React.createElement("div", null,
+        [...sortedProgs,...rest].map(prog => {
+          const items = grouped[prog];
+          const hasOverdue = items.some(d=>daysUntilD(d.date)<0);
+          const soonest = items.reduce((a,b)=>a.date<b.date?a:b);
+          const daysTo = daysUntilD(soonest.date);
+          return React.createElement("div", {key:prog,style:{marginBottom:12}},
+            React.createElement("div", {style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}},
+              React.createElement("div", {style:{fontSize:10,fontWeight:700,color:hasOverdue?"var(--red)":daysTo<=3?"var(--ora)":daysTo<=7?"var(--gold)":"var(--txt3)",textTransform:"uppercase",letterSpacing:"0.08em"}},
+                hasOverdue?"⛔ ":daysTo<=3?"🔥 ":daysTo<=7?"⚡ ":"📅 ", prog, " (", items.length, ")"
+              ),
+              React.createElement("div", {style:{fontSize:11,fontFamily:"var(--mono)",color:"var(--txt3)"}},
+                daysTo===0?"today":daysTo===1?"tomorrow":daysTo<0?`${Math.abs(daysTo)}d overdue`:`${daysTo}d`)
+            ),
+            React.createElement("div", {className:"card",style:{overflow:"hidden"}}, items.sort((a,b)=>a.date.localeCompare(b.date)).map(renderDeadline))
+          );
+        })
+      );
+    })(),
+
+    // Upcoming filtered by programme
+    showing!=="form" && dlProgFilter!=="ALL" && upcoming.filter(d=>d.type===dlProgFilter).length>0 && React.createElement("div", {style:{marginBottom:12}},
+      React.createElement("div", {style:{fontSize:10,fontWeight:700,color:"var(--txt3)",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:6}}, "📅 Upcoming — ", dlProgFilter),
+      React.createElement("div", {className:"card",style:{overflow:"hidden"}}, upcoming.filter(d=>d.type===dlProgFilter).map(renderDeadline))
     ),
 
     // Done
@@ -6257,6 +6805,14 @@ function PipelineTab() {
   const [papers, setPapers] = useState(() => LS("pipeline_papers"));
   const [gradeTargets, setGradeTargets] = useState(() => LS("pipeline_targets"));
   const BLANK_FORM = { title: "", org: "", type: "Internship", col: "applied", note: "", deadline: "", url: "" };
+  const APP_CHECKLIST = ["CV sent", "Cover letter", "Reference letter", "Portfolio/GitHub link", "Followed up", "Offer received"];
+  const [oppChecks, setOppChecks] = useState(() => { try { return JSON.parse(localStorage.getItem("pipeline_opp_checks") || "{}"); } catch { return {}; } });
+  const toggleOppCheck = (oppId, item) => {
+    const key = oppId + "_" + item;
+    const n = { ...oppChecks, [key]: !oppChecks[key] };
+    setOppChecks(n);
+    localStorage.setItem("pipeline_opp_checks", JSON.stringify(n));
+  };
   const [addForm, setAddForm] = useState(BLANK_FORM);
   const [showAdd, setShowAdd] = useState(false);
   const [editOppId, setEditOppId] = useState(null);
@@ -6270,9 +6826,12 @@ function PipelineTab() {
   const [showPaperForm, setShowPaperForm] = useState(false);
 
   // ── KANBAN ──
-  const saveOpps = o => { setOpps(o); LSS("pipeline_opps", o); };
+  const saveOpps = o => {
+    setOpps(o); LSS("pipeline_opps", o);
+    Object.values(o).forEach(op => syncToSupa("pipeline_opps", { ...op, user_id: DEVICE_ID }));
+  };
   const moveOpp = (id, col) => saveOpps({ ...opps, [id]: { ...opps[id], col } });
-  const delOpp = id => { const n = { ...opps }; delete n[id]; saveOpps(n); };
+  const delOpp = id => { const n = { ...opps }; delete n[id]; saveOpps(n); deleteFromSupa("pipeline_opps", id); };
   const addOpp = () => {
     if (!addForm.title.trim()) return;
     const id = Date.now().toString();
@@ -6283,18 +6842,31 @@ function PipelineTab() {
   const startEditOpp = opp => { setEditOppId(opp.id); setEditOppForm({ ...opp }); };
   const saveEditOpp = () => { saveOpps({ ...opps, [editOppId]: { ...editOppForm, id: editOppId } }); setEditOppId(null); };
   const daysUntil = d => { if (!d) return null; const diff = Math.ceil((new Date(d) - new Date()) / 86400000); return diff; };
+  const [nextActionOpp, setNextActionOpp] = useState(null);
+  const [nextActionText, setNextActionText] = useState("");
+  const [nextActionLoading, setNextActionLoading] = useState(false);
+  const getNextAction = async (opp) => {
+    setNextActionOpp(opp.id); setNextActionLoading(true); setNextActionText("");
+    const checksDone = APP_CHECKLIST.filter(item => oppChecks[opp.id+"_"+item]).length;
+    const prompt = `Junior is applying for: ${opp.title} at ${opp.org||"unknown"} (${opp.type}). Status: ${opp.col}. Checklist: ${checksDone}/${APP_CHECKLIST.length} done. Deadline: ${opp.deadline||"none"}. Note: ${opp.note||"none"}.\n\nWhat is ONE specific next action he should take TODAY? 1 sentence max. Be concrete.`;
+    try { const t = await gemini(prompt, 60); setNextActionText(t); }
+    catch { setNextActionText("Follow up with the recruiter today."); }
+    setNextActionLoading(false);
+  };
 
   // ── GRADES ──
   const saveGrade = (subId, score) => {
     const existing = grades[subId] || { scores: [] };
     const n = { ...grades, [subId]: { ...existing, scores: [...existing.scores, { score: parseFloat(score), date: new Date().toISOString().slice(0, 10) }] } };
     setGrades(n); LSS("pipeline_grades", n);
+    syncToSupa("pipeline_grades", { id: `${DEVICE_ID}_${subId}`, user_id: DEVICE_ID, subject_id: subId, scores: n[subId].scores });
   };
   const delGradeEntry = (subId, idx) => {
     const existing = grades[subId] || { scores: [] };
     const newScores = existing.scores.filter((_, i) => i !== idx);
     const n = { ...grades, [subId]: { ...existing, scores: newScores } };
     setGrades(n); LSS("pipeline_grades", n);
+    syncToSupa("pipeline_grades", { id: `${DEVICE_ID}_${subId}`, user_id: DEVICE_ID, subject_id: subId, scores: newScores });
   };
   const saveTarget = (subId, val) => {
     const n = { ...gradeTargets, [subId]: parseFloat(val) };
@@ -6328,12 +6900,17 @@ function PipelineTab() {
   const addPaper = () => {
     if (!paperForm.year || !paperForm.score) return;
     const id = Date.now().toString();
-    const n = { ...papers, [id]: { ...paperForm, id, score: parseFloat(paperForm.score) } };
+    const paper = { ...paperForm, id, score: parseFloat(paperForm.score) };
+    const n = { ...papers, [id]: paper };
     setPapers(n); LSS("pipeline_papers", n);
+    syncToSupa("pipeline_papers", { ...paper, user_id: DEVICE_ID });
     setPaperForm({ mod: "PHY151", year: "", score: "", note: "" });
     setShowPaperForm(false);
   };
-  const delPaper = id => { const n = { ...papers }; delete n[id]; setPapers(n); LSS("pipeline_papers", n); };
+  const delPaper = id => {
+    const n = { ...papers }; delete n[id]; setPapers(n); LSS("pipeline_papers", n);
+    deleteFromSupa("pipeline_papers", id);
+  };
 
   const oppList = Object.values(opps);
   const totalPapers = Object.values(papers).length;
@@ -6394,6 +6971,63 @@ function PipelineTab() {
     // KANBAN SECTION
     // ══════════════════════════════════════════════════
     section === "kanban" && React.createElement("div", null,
+      // Interview countdown banner
+      (() => {
+        const interviews = oppList.filter(o => o.col === "interview" && o.deadline);
+        if (!interviews.length) return null;
+        return React.createElement("div", { style: { marginBottom: 14 } },
+          interviews.map(o => {
+            const d = daysUntil(o.deadline);
+            if (d === null) return null;
+            const col = d < 0 ? "var(--red)" : d <= 3 ? "var(--red)" : d <= 7 ? "var(--ora)" : d <= 14 ? "var(--gold)" : "var(--purple)";
+            return React.createElement("div", { key: o.id, style: { display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: col+"18", border: `1px solid ${col}44`, borderRadius: 10, marginBottom: 6 } },
+              React.createElement("div", { style: { fontSize: 22, fontWeight: 800, fontFamily: "var(--mono)", color: col, flexShrink: 0, minWidth: 36, textAlign: "center" } }, d < 0 ? "–" : d),
+              React.createElement("div", { style: { flex: 1 } },
+                React.createElement("div", { style: { fontSize: 13, fontWeight: 700 } }, o.title),
+                React.createElement("div", { style: { fontSize: 11, color: "var(--txt2)", marginTop: 2 } },
+                  d < 0 ? `Deadline passed ${Math.abs(d)}d ago` : d === 0 ? "⚡ Due TODAY" : `${d} days until deadline · ${o.deadline}`
+                )
+              ),
+              React.createElement("div", { style: { fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 99, background: col+"22", color: col } }, "🎯 PREP")
+            );
+          })
+        );
+      })(),
+      // ── INTERVIEW PREP CHECKLIST ──────────────────────────────────────────
+      (() => {
+        const interviewOpps = oppList.filter(o => o.col === "interview");
+        if (!interviewOpps.length) return null;
+        const PREP_ITEMS = [
+          ["Research the company/role thoroughly","🔍"],
+          ["Prepare 5 STAR stories (one per LP)","⭐"],
+          ["Practice coding — 2 LeetCode mediums","💻"],
+          ["Prepare questions to ask the interviewer","💬"],
+          ["Sort out transport/location/time","🚌"],
+          ["Get a good night's sleep","😴"],
+          ["Wear professional clothes","👔"],
+          ["Bring CV + portfolio link","📄"],
+        ];
+        return React.createElement("div", { className: "card card-p", style: { marginBottom: 14, borderLeft: "4px solid var(--purple)" } },
+          React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--purple)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 } }, "🎯 Interview Prep Checklist"),
+          interviewOpps.map(o => React.createElement("div", { key: o.id, style: { marginBottom: 10 } },
+            React.createElement("div", { style: { fontSize: 13, fontWeight: 700, marginBottom: 6 } }, o.title),
+            PREP_ITEMS.map(([item, icon]) => {
+              const key = `prep_${o.id}_${item}`;
+              const done = oppChecks[key];
+              return React.createElement("div", { key: item, onClick: () => toggleOppCheck(o.id, `prep_${item}`),
+                style: { display: "flex", alignItems: "center", gap: 8, padding: "6px 0", cursor: "pointer", borderBottom: "0.5px solid var(--sep)" }
+              },
+                React.createElement("div", { style: { width: 20, height: 20, borderRadius: "50%", border: `2px solid ${done?"var(--acc)":"var(--bdr3)"}`, background: done?"var(--acc)":"transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#fff", fontWeight: 700, flexShrink: 0 } }, done?"✓":""),
+                React.createElement("span", { style: { fontSize: 13 } }, icon),
+                React.createElement("div", { style: { flex: 1, fontSize: 13, color: done?"var(--txt3)":"var(--txt)", textDecoration: done?"line-through":"none" } }, item)
+              );
+            }),
+            React.createElement("div", { style: { fontSize: 12, color: "var(--txt3)", marginTop: 6 } },
+              `${PREP_ITEMS.filter(([item]) => oppChecks[`prep_${o.id}_prep_${item}`]).length}/${PREP_ITEMS.length} done`
+            )
+          ))
+        );
+      })(),
       React.createElement("button", { className: "btn btn-primary", style: { width: "100%", marginBottom: 14, fontSize: 15 }, onClick: () => { setShowAdd(s => !s); setEditOppId(null); } }, showAdd ? "✕ Cancel" : "➕ Add Opportunity"),
       showAdd && renderOppForm(addForm, setAddForm, addOpp, () => setShowAdd(false)),
       KANBAN_COLS.map(col => {
@@ -6440,6 +7074,25 @@ function PipelineTab() {
                           ),
                           // Expanded note
                           isExpanded && opp.note && React.createElement("div", { style: { fontSize: 13, color: "var(--txt2)", marginBottom: 8, padding: "8px 12px", background: "var(--sur2)", borderRadius: 8, fontStyle: "italic" } }, opp.note),
+                          // Application checklist (shown when expanded)
+                          isExpanded && React.createElement("div", { style: { marginBottom: 8 } },
+                            React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 } },
+                              "Application Checklist — ", APP_CHECKLIST.filter(item => oppChecks[opp.id+"_"+item]).length, "/", APP_CHECKLIST.length
+                            ),
+                            React.createElement("div", { style: { display: "flex", gap: 4, flexWrap: "wrap" } },
+                              APP_CHECKLIST.map(item => {
+                                const done = !!oppChecks[opp.id + "_" + item];
+                                return React.createElement("button", { key: item, onClick: () => toggleOppCheck(opp.id, item), style: { fontFamily: "inherit", fontSize: 10, fontWeight: 600, padding: "3px 9px", borderRadius: 99, border: `1px solid ${done ? "var(--acc)" : "var(--bdr2)"}`, background: done ? "var(--acc-dim)" : "transparent", color: done ? "var(--acc)" : "var(--txt3)", cursor: "pointer", textDecoration: done ? "line-through" : "none" } }, done ? "✓ " : "", item);
+                              })
+                            )
+                          ),
+                          // ── NEXT ACTION (Gemini) ───────────────────────────────────────
+                          isExpanded && React.createElement("div", { style: { marginTop: 8 } },
+                            React.createElement("button", { onClick: () => getNextAction(opp), disabled: nextActionLoading && nextActionOpp===opp.id,
+                              style: { fontFamily: "inherit", fontSize: 11, fontWeight: 700, padding: "5px 12px", borderRadius: 8, border: "1px solid var(--acc)44", background: "var(--acc-dim)", color: "var(--acc)", cursor: "pointer", width: "100%", marginBottom: 4 }
+                            }, nextActionLoading && nextActionOpp===opp.id ? "Thinking…" : "⚡ What's my next action?"),
+                            nextActionOpp===opp.id && nextActionText && React.createElement("div", { style: { fontSize: 12, color: "var(--txt2)", padding: "6px 8px", background: "var(--sur2)", borderRadius: 6, lineHeight: 1.5 } }, nextActionText)
+                          ),
                           // Move buttons
                           React.createElement("div", { style: { display: "flex", gap: 4, flexWrap: "wrap", marginTop: 8 } },
                             KANBAN_COLS.filter(c => c.k !== col.k).map(c =>
@@ -6702,43 +7355,31 @@ function ExamsTab(_ref22) {
   const saveEvents = e => {
     setEvents(e);
     LSS("exam_events_v1", e);
+    Object.values(e).forEach(ev => syncToSupa("exam_events", { id: ev.id, user_id: DEVICE_ID, title: ev.title, date: ev.date, type: ev.type, subjects: ev.subjects || [], note: ev.note || "" }));
   };
-  const saveProgress = p => {
-    setProgress(p);
-    LSS("exam_progress_v1", p);
-  };
-  const saveTopics = t => {
-    setTopics(t);
-    LSS("exam_topics_v1", t);
-  };
-  const saveSessions = s => {
-    setSessions(s);
-    LSS("exam_sessions_v1", s);
-  };
+  const saveProgress = p => { setProgress(p); LSS("exam_progress_v1", p); };
+  const saveTopics = t => { setTopics(t); LSS("exam_topics_v1", t); };
+  const saveSessions = s => { setSessions(s); LSS("exam_sessions_v1", s); };
   const addEvent = () => {
     if (!form.title.trim() || !form.date) return;
     const id = "e_" + Date.now();
-    saveEvents({
-      ...events,
-      [id]: {
-        ...form,
-        id
-      }
-    });
-    setForm({
-      title: "",
-      date: "",
-      type: "exam",
-      subjects: [],
-      note: ""
-    });
+    saveEvents({ ...events, [id]: { ...form, id } });
+    setForm({ title: "", date: "", type: "exam", subjects: [], note: "" });
   };
   const delEvent = id => {
-    const n = {
-      ...events
-    };
+    const n = { ...events };
     delete n[id];
     saveEvents(n);
+    deleteFromSupa("exam_events", id);
+  };
+  const pushToDeadlines = (ev) => {
+    const existing = LS("deadlines_v1");
+    const id = "exam_" + ev.id;
+    if (existing[id]) { alert("Already added to Deadlines!"); return; }
+    const dl = { id, title: ev.title, type: "OTHER", date: ev.date, note: ev.note || "", priority: "🔴", subtasks: [], repeat: "none", done: false, created: new Date().toISOString() };
+    const n = { ...existing, [id]: dl };
+    LSS("deadlines_v1", n);
+    alert("✅ Added to Deadlines tab!");
   };
   const toggleCheck = (subId, item) => {
     const key = `${subId}_${item}`;
@@ -6814,16 +7455,10 @@ function ExamsTab(_ref22) {
     setTimerRunning(false);
     if (timerSecs > 60 && timerSub) {
       const id = "sess_" + Date.now();
-      const n = {
-        ...sessions,
-        [id]: {
-          id,
-          sub: timerSub,
-          secs: timerSecs,
-          date: new Date().toISOString().slice(0, 10)
-        }
-      };
+      const sess = { id, sub: timerSub, secs: timerSecs, date: new Date().toISOString().slice(0, 10) };
+      const n = { ...sessions, [id]: sess };
       saveSessions(n);
+      syncToSupa("exam_sessions", { ...sess, user_id: DEVICE_ID });
     }
     setTimerSecs(0);
     setTimerSub(null);
@@ -6991,7 +7626,45 @@ function ExamsTab(_ref22) {
         padding: "7px 14px"
       }
     }, ic, " ", k.charAt(0).toUpperCase() + k.slice(1));
-  })), section === "countdown" && /*#__PURE__*/React.createElement("div", null, upcomingEvents.length === 0 && /*#__PURE__*/React.createElement("div", {
+  })), section === "countdown" && /*#__PURE__*/React.createElement("div", null,
+  // ── URGENCY BANNER ──────────────────────────────────────────────────────
+  (() => {
+    const urgent = upcomingEvents.filter(e => {
+      const days = Math.ceil((new Date(e.date+"T00:00:00") - new Date().setHours(0,0,0,0)) / 86400000);
+      return days <= 14;
+    });
+    if (!urgent.length) return null;
+    return React.createElement("div", { style: { background: "linear-gradient(135deg,rgba(255,77,109,0.15),rgba(255,149,0,0.08))", border: "1px solid rgba(255,77,109,0.3)", borderRadius: 12, padding: "12px 14px", marginBottom: 14 } },
+      React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--red)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 } }, "🚨 Urgent — Less than 2 weeks"),
+      urgent.map(e => {
+        const days = Math.ceil((new Date(e.date+"T00:00:00") - new Date().setHours(0,0,0,0)) / 86400000);
+        return React.createElement("div", { key: e.id, style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 } },
+          React.createElement("div", { style: { fontSize: 14, fontWeight: 700 } }, e.title),
+          React.createElement("div", { style: { fontFamily: "var(--mono)", fontSize: 18, fontWeight: 800, color: days<=3?"var(--red)":days<=7?"var(--ora)":"var(--gold)" } }, days===0?"TODAY!":days===1?"TOMORROW!":days+"d")
+        );
+      })
+    );
+  })(),
+  // ── STUDY HOURS TRACKER ──────────────────────────────────────────────────
+  upcomingEvents.filter(e=>e.type==="exam").length > 0 && React.createElement("div", { className: "card card-p", style: { marginBottom: 12 } },
+    React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 } }, "📚 Study Hours This Week"),
+    upcomingEvents.filter(e=>e.type==="exam"&&e.subjects.length>0).flatMap(e=>e.subjects).filter((s,i,a)=>a.indexOf(s)===i).map(sub => {
+      const wk = new Date().toISOString().slice(0,10).slice(0,8)+"01";
+      const hrs = Object.values(sessions).filter(s=>s.sub===sub).reduce((a,s)=>a+s.secs,0)/3600;
+      const target = 10; // 10h/week target per subject
+      const pct2 = Math.min(100, Math.round(hrs/target*100));
+      return React.createElement("div", { key: sub, style: { marginBottom: 8 } },
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 3 } },
+          React.createElement("div", { style: { fontSize: 12, fontWeight: 600 } }, sub),
+          React.createElement("div", { style: { fontSize: 11, fontFamily: "var(--mono)", color: pct2>=70?"var(--acc)":pct2>=40?"var(--gold)":"var(--red)" } }, `${hrs.toFixed(1)}h / ${target}h`)
+        ),
+        React.createElement("div", { className: "pbar", style: { height: 5 } },
+          React.createElement("div", { className: "pbar-fill", style: { width: `${pct2}%`, height: "100%", background: pct2>=70?"var(--acc)":pct2>=40?"var(--gold)":"var(--red)" } })
+        )
+      );
+    })
+  ),
+  upcomingEvents.length === 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "40px 16px",
       textAlign: "center"
@@ -7241,24 +7914,16 @@ function ExamsTab(_ref22) {
         fontWeight: 600
       }
     }, ev.title), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 12,
-        color: "var(--txt2)"
-      }
+      style: { fontSize: 12, color: "var(--txt2)" }
     }, new Date(ev.date + "T00:00:00").toLocaleDateString("en-ZA", {
-      day: "numeric",
-      month: "short",
-      year: "numeric"
-    }))), /*#__PURE__*/React.createElement("button", {
-      onClick: () => delEvent(ev.id),
-      style: {
-        background: "transparent",
-        border: "none",
-        color: "var(--txt3)",
-        fontSize: 14,
-        cursor: "pointer"
-      }
-    }, "\u2715"));
+      day: "numeric", month: "short", year: "numeric"
+    }))), React.createElement("div", { style: { display: "flex", gap: 4, alignItems: "center" } },
+      React.createElement("button", { onClick: () => pushToDeadlines(ev), style: { fontFamily: "inherit", fontSize: 10, fontWeight: 700, padding: "3px 7px", borderRadius: 99, border: "1px solid var(--acc)44", background: "var(--acc)11", color: "var(--acc)", cursor: "pointer" } }, "📋 + DL"),
+      /*#__PURE__*/React.createElement("button", {
+        onClick: () => delEvent(ev.id),
+        style: { background: "transparent", border: "none", color: "var(--txt3)", fontSize: 14, cursor: "pointer" }
+      }, "\u2715"))
+    );
   })))), section === "timetable" && /*#__PURE__*/React.createElement("div", null, genTimetable.length === 0 ? /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "40px 16px",
@@ -7766,7 +8431,7 @@ function ExamsTab(_ref22) {
       padding: "24px 16px",
       textAlign: "center",
       background: "var(--sur2)",
-      borderRadius: var_r_sm
+      borderRadius: 10
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -7995,7 +8660,7 @@ function ExamsTab(_ref22) {
       padding: "24px 16px",
       textAlign: "center",
       background: "var(--sur2)",
-      borderRadius: var_r_sm
+      borderRadius: 10
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -8384,747 +9049,610 @@ function ExamsTab(_ref22) {
     }, "📅 Download Weekly Schedule .ics")))));
 }
 function ReviewTab(_ref27) {
-  let {
-    checked,
-    slots,
-    wk
-  } = _ref27;
+  let { checked, slots, wk } = _ref27;
+  const safeSlots = (slots && Array.isArray(slots)) ? slots : [];
+
+  // ── CORE STATE ───────────────────────────────────────────────────────────
   const [reviews, setReviews] = useState(() => LS("reviews_v1"));
-  const [view, setView] = useState("this"); // "this"|"history"
-  const [form, setForm] = useState(() => LS("reviews_v1")[wk] || {
-    win: "",
-    skipped: "",
-    energy: 0,
-    different: "",
-    rating: 0,
-    done: false
-  });
+  const [view, setView] = useState("this");
+  const [form, setForm] = useState(() => LS("reviews_v1")[wk] || { win:"", skipped:"", energy:0, different:"", rating:0, done:false });
   const saveReviews = r => {
-    setReviews(r);
-    LSS("reviews_v1", r);
-    // Sync latest review to Supabase
-    const latestWk = Object.keys(r).sort().pop();
-    if (latestWk && r[latestWk]?.done) {
-      const rv = r[latestWk];
-      syncToSupa("reviews", { id: `${DEVICE_ID}_${latestWk}`, user_id: DEVICE_ID, week: latestWk, win: rv.win, skipped: rv.skipped, energy: rv.energy, different: rv.different, rating: rv.rating, blocks_done: rv.blocksDone, blocks_total: rv.blocksTotal });
-    }
+    setReviews(r); LSS("reviews_v1", r);
+    const lk = Object.keys(r).sort().pop();
+    if (lk && r[lk]?.done) { const rv=r[lk]; syncToSupa("reviews",{id:`${DEVICE_ID}_${lk}`,user_id:DEVICE_ID,week:lk,win:rv.win,skipped:rv.skipped,energy:rv.energy,different:rv.different,rating:rv.rating,blocks_done:rv.blocksDone,blocks_total:rv.blocksTotal}); }
   };
 
-  // Auto-calculate blocks completed from ticks
-  const blocksTotal = useMemo(() => {
-    let t = 0;
-    slots.forEach(s => {
-      if (s.sec === "SLEEP") return;
+  // ── BLOCKS CALC ──────────────────────────────────────────────────────────
+  const blocksTotal = useMemo(() => { let t=0; safeSlots.forEach(s=>{ if(s.sec==="SLEEP")return; DAYS.forEach(d=>{ const sl=s[d]; if(sl&&!LIFE.has(sl.type))t++; }); }); return t; }, [safeSlots]);
+  const blocksDone = useMemo(() => Object.keys(checked).filter(k=>k.startsWith(wk)&&checked[k]).length, [checked,wk]);
+  const blocksPercent = blocksTotal ? Math.round(blocksDone/blocksTotal*100) : 0;
+
+  // ── PER-PROGRAMME BLOCKS ─────────────────────────────────────────────────
+  const progBlocks = useMemo(() => {
+    const progs = { ECP:0, UNISA:0, ALX:0, AMAZON:0, AWS:0, MWR:0 };
+    const done = { ECP:0, UNISA:0, ALX:0, AMAZON:0, AWS:0, MWR:0 };
+    safeSlots.forEach(s => {
+      if (s.sec==="SLEEP") return;
       DAYS.forEach(d => {
-        const sl = s[d];
-        if (sl && !LIFE.has(sl.type)) t++;
+        const sl = s[d]; if (!sl||LIFE.has(sl.type)) return;
+        const p = BM[sl.type]?.p || sl.type;
+        if (progs[p]!==undefined) {
+          progs[p]++;
+          const k = `${wk}_${s.time}_${d}`;
+          if (checked[k]) done[p]++;
+        }
       });
     });
-    return t;
-  }, [slots]);
-  const blocksDone = useMemo(() => Object.keys(checked).filter(k => k.startsWith(wk) && checked[k]).length, [checked, wk]);
-  const blocksPercent = blocksTotal ? Math.round(blocksDone / blocksTotal * 100) : 0;
+    return Object.entries(progs).filter(([,t])=>t>0).map(([p,t])=>({ p, t, d:done[p], pct: Math.round(done[p]/t*100) }));
+  }, [safeSlots, checked, wk]);
+
+  // ── SAVE ─────────────────────────────────────────────────────────────────
   const saveForm = () => {
     if (!form.win.trim()) return;
-    const r = {
-      ...reviews,
-      [wk]: {
-        ...form,
-        done: true,
-        savedAt: new Date().toISOString(),
-        blocksDone,
-        blocksTotal,
-        blocksPercent
-      }
-    };
+    const r = { ...reviews, [wk]: { ...form, done:true, savedAt:new Date().toISOString(), blocksDone, blocksTotal, blocksPercent } };
     saveReviews(r);
-    setForm(p => ({
-      ...p,
-      done: true
-    }));
+    setForm(p=>({...p,done:true}));
   };
-  const allReviews = Object.entries(reviews).filter(_ref28 => {
-    let [, v] = _ref28;
-    return v.done;
-  }).sort((_ref29, _ref30) => {
-    let [a] = _ref29;
-    let [b] = _ref30;
-    return b.localeCompare(a);
-  });
+
+  const allReviews = Object.entries(reviews).filter(([,v])=>v.done).sort(([a],[b])=>b.localeCompare(a));
   const streak = useMemo(() => {
-    let s = 0;
-    let d = new Date();
-    while (true) {
-      d.setDate(d.getDate() - (d.getDay() + 6) % 7);
-      const k = d.toISOString().slice(0, 10);
-      if (!reviews[k]?.done) break;
-      s++;
-      d.setDate(d.getDate() - 7);
-    }
+    let s=0, d=new Date();
+    while(true) { d.setDate(d.getDate()-(d.getDay()+6)%7); const k=d.toISOString().slice(0,10); if(!reviews[k]?.done) break; s++; d.setDate(d.getDate()-7); }
     return s;
   }, [reviews]);
   const thisReview = reviews[wk];
   const isSaved = thisReview?.done;
-  const StarRow = _ref31 => {
-    let {
-      val,
-      max = 5,
-      onChange,
-      color = "var(--gold)"
-    } = _ref31;
-    return /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        gap: 6
-      }
-    }, Array(max).fill(null).map((_, i) => /*#__PURE__*/React.createElement("button", {
-      key: i,
-      onClick: () => onChange(i + 1),
-      style: {
-        fontSize: 28,
-        background: "transparent",
-        border: "none",
-        cursor: "pointer",
-        opacity: i < val ? 1 : 0.2,
-        transition: "all .15s cubic-bezier(.34,1.56,.64,1)",
-        transform: i < val ? "scale(1.1)" : "scale(1)",
-        filter: i < val ? "none" : "grayscale(1)"
-      }
-    }, "\u2B50")));
+
+  // ── HELPERS ──────────────────────────────────────────────────────────────
+  const weekLabel = w => { const d=new Date(w+"T00:00:00"),end=new Date(d); end.setDate(d.getDate()+6); return `${d.toLocaleDateString("en-ZA",{day:"numeric",month:"short"})} – ${end.toLocaleDateString("en-ZA",{day:"numeric",month:"short"})}`; };
+  const ratingColor = r => r>=4?"var(--acc)":r>=3?"var(--gold)":r>=2?"var(--ora)":"var(--red)";
+  const energyEmoji = e => ["😴","😐","🙂","😊","🔥"][e-1]||"—";
+  const StarRow = ({val,onChange}) => React.createElement("div",{style:{display:"flex",gap:6}},
+    Array(5).fill(null).map((_,i)=>React.createElement("button",{key:i,onClick:()=>onChange(i+1),style:{fontSize:28,background:"transparent",border:"none",cursor:"pointer",opacity:i<val?1:0.2,transition:"all .15s",transform:i<val?"scale(1.1)":"scale(1)"}},"⭐"))
+  );
+  const EnergyRow = ({val,onChange}) => React.createElement("div",{style:{display:"flex",gap:8}},
+    ["😴","😐","🙂","😊","🔥"].map((e,i)=>React.createElement("button",{key:i,onClick:()=>onChange(i+1),style:{fontSize:30,background:"transparent",border:"none",cursor:"pointer",opacity:i+1===val?1:0.25,transition:"all .2s",transform:i+1===val?"scale(1.25)":"scale(1)"}},e))
+  );
+
+  // ── GOALS ────────────────────────────────────────────────────────────────
+  const [goals, setGoals] = useState(()=>{ try{return JSON.parse(localStorage.getItem("weekly_goals")||"{}")}catch{return{}} });
+  const [goalInput, setGoalInput] = useState("");
+  const weekGoals = goals[wk]||[];
+  const saveGoals = g => { setGoals(n=>{const u={...n,[wk]:g};localStorage.setItem("weekly_goals",JSON.stringify(u));return u;}); };
+  const addGoal = () => { if(!goalInput.trim()||weekGoals.length>=3) return; saveGoals([...weekGoals,{t:goalInput.trim(),done:false}]); setGoalInput(""); };
+  const togGoal = i => { const g=[...weekGoals]; g[i]={...g[i],done:!g[i].done}; saveGoals(g); };
+
+  // ── EDIT ─────────────────────────────────────────────────────────────────
+  const [editingWk, setEditingWk] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const startEdit = (w,r) => { setEditingWk(w); setEditForm({win:r.win||"",skipped:r.skipped||"",energy:r.energy||0,different:r.different||"",rating:r.rating||0}); };
+  const saveEdit = () => { saveReviews({...reviews,[editingWk]:{...reviews[editingWk],...editForm,done:true}}); setEditingWk(null); };
+
+  // ── CARRY-FORWARD (item 1) ───────────────────────────────────────────────
+  const lastWkKey = allReviews.find(([w])=>w<wk)?.[0];
+  const carryForward = lastWkKey ? reviews[lastWkKey]?.different : null;
+
+  // ── MISSED WEEK DETECT (item 2) ──────────────────────────────────────────
+  const missedLastWeek = (() => {
+    if (!lastWkKey) return false;
+    const expected = new Date(wk+"T00:00:00"); expected.setDate(expected.getDate()-7);
+    const expKey = expected.toISOString().slice(0,10);
+    return expKey !== lastWkKey;
+  })();
+
+  // ── GOALS VS ACTUALS (item 3) ─────────────────────────────────────────────
+  const goalsVsActuals = weekGoals.map(g => {
+    const winMatch = thisReview?.win && thisReview.win.toLowerCase().includes(g.t.toLowerCase().slice(0,10));
+    return { ...g, matched: winMatch };
+  });
+
+  // ── AI INSIGHT (Gemini) ──────────────────────────────────────────────────
+  const [aiInsight, setAiInsight] = useState(()=>{ try{return JSON.parse(localStorage.getItem("review_ai_insight")||"null")}catch{return null} });
+  const [aiLoading, setAiLoading] = useState(false);
+  const fetchAiInsight = async () => {
+    setAiLoading(true);
+    const last4 = allReviews.slice(0,4).map(([w,r])=>({ week:weekLabel(w), rating:r.rating, energy:r.energy, attendance:r.blocksPercent, win:r.win, skipped:r.skipped, different:r.different }));
+    const prompt = `You are a study coach for Junior Kabelo Motsoko, a first-year BSc CS student at UWC (ECP) also doing UNISA, ALX Africa, AWS re/Start, pursuing Amazon SDE internship.\n\nLast ${last4.length} weekly reviews:\n${JSON.stringify(last4,null,2)}\n\nThis week: ${blocksPercent}% attendance (${blocksDone}/${blocksTotal} blocks).\n\nGive 3-4 bullet points of personalised insight, max 80 words. Be direct, specific, motivating. Use his actual data. End with one actionable suggestion. South African context where relevant.`;
+    try {
+      const text = await gemini(prompt, 300);
+      const insight = { text, date: new Date().toISOString().slice(0,10), wk };
+      setAiInsight(insight);
+      localStorage.setItem("review_ai_insight", JSON.stringify(insight));
+    } catch(e) { setAiInsight({ text: "Failed — check your Gemini API key.", date: new Date().toISOString().slice(0,10), wk }); }
+    setAiLoading(false);
   };
-  const EnergyRow = _ref32 => {
-    let {
-      val,
-      onChange
-    } = _ref32;
-    const opts = ["😴", "😐", "🙂", "😊", "🔥"];
-    return /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        gap: 8
-      }
-    }, opts.map((e, i) => /*#__PURE__*/React.createElement("button", {
-      key: i,
-      onClick: () => onChange(i + 1),
-      style: {
-        fontSize: 32,
-        background: "transparent",
-        border: "none",
-        cursor: "pointer",
-        opacity: i + 1 === val ? 1 : 0.25,
-        transition: "all .2s cubic-bezier(.34,1.56,.64,1)",
-        transform: i + 1 === val ? "scale(1.25)" : "scale(1)"
-      }
-    }, e)));
+
+  // ── MONTHLY SUMMARY (item 4) ─────────────────────────────────────────────
+  const monthlySummary = useMemo(() => {
+    const months = {};
+    allReviews.forEach(([w,r]) => {
+      const mo = w.slice(0,7);
+      if (!months[mo]) months[mo] = { weeks:0, totalAtt:0, totalEnergy:0, totalRating:0, goalsHit:0, goalsPossible:0 };
+      const m = months[mo];
+      m.weeks++; m.totalAtt+=r.blocksPercent||0; m.totalEnergy+=r.energy||0; m.totalRating+=r.rating||0;
+      const wg = goals[w]||[];
+      m.goalsPossible+=wg.length; m.goalsHit+=wg.filter(g=>g.done).length;
+    });
+    return Object.entries(months).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,4).map(([mo,m])=>({
+      mo, label: new Date(mo+"-01").toLocaleDateString("en-ZA",{month:"long",year:"numeric"}),
+      avgAtt: Math.round(m.totalAtt/m.weeks), avgEnergy: (m.totalEnergy/m.weeks).toFixed(1),
+      avgRating: (m.totalRating/m.weeks).toFixed(1), weeks: m.weeks,
+      goalsHit: m.goalsHit, goalsPossible: m.goalsPossible
+    }));
+  }, [allReviews, goals]);
+
+  // ── SMART PROMPTS (item 6) ───────────────────────────────────────────────
+  const smartPrompt = (() => {
+    if (blocksPercent < 50) return "You missed quite a few blocks this week — what got in the way?";
+    if (blocksPercent > 90) return "Strong week! What made it click — what can you repeat next week?";
+    if (streak >= 4) return `${streak} weeks in a row 🔥 — what's your system?`;
+    const lastRating = allReviews[0]?.[1]?.rating||0;
+    if (lastRating >= 4 && (thisReview?.rating||0) < 3) return "Last week was great but this one harder — what changed?";
+    if (carryForward) return `Last week you said: "${carryForward.slice(0,60)}${carryForward.length>60?"…":""}" — did you act on it?`;
+    return "What's one thing that made the biggest difference this week?";
+  })();
+
+  // ── MILESTONES (item 6 prev) ─────────────────────────────────────────────
+  const MILESTONES = [[4,"🏅","4-week streak"],[8,"🔥","8-week streak"],[12,"💎","12-week streak"],[24,"👑","6-month streak"]];
+  const nextMilestone = MILESTONES.find(([n])=>streak<n);
+  const latestMilestone = [...MILESTONES].reverse().find(([n])=>streak>=n);
+
+  // ── SHARE (item 7) ───────────────────────────────────────────────────────
+  const shareWeek = (w,r) => {
+    const txt = [`📓 Week Review — ${weekLabel(w)}`,`📊 Attendance: ${r.blocksPercent||0}% (${r.blocksDone||0}/${r.blocksTotal||0} blocks)`,`⭐ Rating: ${r.rating||0}/5  ⚡ Energy: ${energyEmoji(r.energy)}`,r.win?`\n🏆 Win: ${r.win}`:"",r.different?`🔄 Next: ${r.different}`:"",`\n— Junior Kabelo Motsoko | Master Schedule`].filter(Boolean).join("\n");
+    if (navigator.share) { navigator.share({title:"Weekly Review",text:txt}).catch(()=>{}); }
+    else { navigator.clipboard?.writeText(txt).then(()=>alert("Copied to clipboard!")); }
   };
-  const weekLabel = w => {
-    const d = new Date(w + "T00:00:00");
-    const end = new Date(d);
-    end.setDate(d.getDate() + 6);
-    return `${d.toLocaleDateString("en-ZA", {
-      day: "numeric",
-      month: "short"
-    })} – ${end.toLocaleDateString("en-ZA", {
-      day: "numeric",
-      month: "short"
-    })}`;
-  };
-  const ratingColor = r => r >= 4 ? "var(--acc)" : r >= 3 ? "var(--gold)" : r >= 2 ? "var(--ora)" : "var(--red)";
-  const energyEmoji = e => ["😴", "😐", "🙂", "😊", "🔥"][e - 1] || "—";
-  return /*#__PURE__*/React.createElement("div", {
-    className: "fu"
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 16
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      fontWeight: 600,
-      color: "var(--acc)",
-      marginBottom: 4,
-      letterSpacing: 0.02
-    }
-  }, "Weekly Review"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 26,
-      fontWeight: 800,
-      letterSpacing: "-0.03em",
-      lineHeight: 1
-    }
-  }, "Sunday Check-in"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      color: "var(--txt2)",
-      marginTop: 4
-    }
-  }, "Honest. 15 minutes. Every week.")), /*#__PURE__*/React.createElement("div", {
-    className: "chips",
-    style: {
-      marginBottom: 16
-    }
-  }, [[streak, "Week Streak", "var(--gold)"], [allReviews.length, "Reviews Done", "var(--blue)"], [`${blocksPercent}%`, "This Week", "var(--acc)"]].map(_ref33 => {
-    let [v, l, c] = _ref33;
-    return /*#__PURE__*/React.createElement("div", {
-      key: l,
-      className: "chip",
-      style: {
-        flex: 1
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "chip-n",
-      style: {
-        color: c,
-        fontSize: 20
-      }
-    }, v), /*#__PURE__*/React.createElement("div", {
-      className: "chip-l"
-    }, l));
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "seg-ctrl",
-    style: { marginBottom: 16 }
-  }, /*#__PURE__*/React.createElement("button", {
-    className: `seg-btn${view === "this" ? " on" : ""}`,
-    onClick: () => setView("this")
-  }, "\uD83D\uDCDD This Week"), /*#__PURE__*/React.createElement("button", {
-    className: `seg-btn${view === "history" ? " on" : ""}`,
-    onClick: () => setView("history")
-  }, "\uD83D\uDCCA History"), /*#__PURE__*/React.createElement("button", {
-    className: `seg-btn${view === "stats" ? " on" : ""}`,
-    onClick: () => setView("stats")
-  }, "📊 Stats")), view === "stats" && /*#__PURE__*/React.createElement(StatsPanel, { checked, slots }), view === "this" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    className: "card card-p",
-    style: {
-      marginBottom: 12,
-      background: "linear-gradient(135deg,var(--bg2),var(--sur))",
-      borderLeft: "4px solid var(--acc)"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      fontWeight: 700,
-      color: "var(--txt2)",
-      textTransform: "uppercase",
-      letterSpacing: "0.08em",
-      marginBottom: 8
-    }
-  }, "\uD83D\uDCCA This Week's Blocks"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "flex-end",
-      marginBottom: 10
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 36,
-      fontWeight: 800,
-      letterSpacing: "-0.04em",
-      color: blocksPercent >= 70 ? "var(--acc)" : blocksPercent >= 50 ? "var(--gold)" : "var(--red)",
-      lineHeight: 1
-    }
-  }, blocksPercent, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 18,
-      opacity: 0.6
-    }
-  }, "%")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      color: "var(--txt2)",
-      marginTop: 4
-    }
-  }, blocksDone, " of ", blocksTotal, " blocks completed")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 40
-    }
-  }, blocksPercent >= 80 ? "🏆" : blocksPercent >= 60 ? "💪" : blocksPercent >= 40 ? "😐" : "😔")), /*#__PURE__*/React.createElement("div", {
-    className: "pbar"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "pbar-fill",
-    style: {
-      width: `${blocksPercent}%`,
-      background: blocksPercent >= 70 ? "var(--acc)" : blocksPercent >= 50 ? "var(--gold)" : "var(--red)"
-    }
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      color: "var(--txt2)",
-      marginTop: 6
-    }
-  }, weekLabel(wk))), isSaved ?
-  /*#__PURE__*/
-  /* ── SAVED VIEW ── */
-  React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 8,
-      marginBottom: 14,
-      padding: "12px 16px",
-      background: "var(--acc-dim)",
-      borderRadius: var_r_sm,
-      border: "1px solid var(--acc)"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 20
-    }
-  }, "\u2705"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 14,
-      fontWeight: 600,
-      color: "var(--acc)"
-    }
-  }, "Week reviewed \u2014 sharp ntwana!")), /*#__PURE__*/React.createElement("div", {
-    className: "list-card"
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: "14px 16px",
-      borderBottom: "0.5px solid var(--sep)"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      fontWeight: 700,
-      color: "var(--txt3)",
-      textTransform: "uppercase",
-      letterSpacing: "0.08em",
-      marginBottom: 6
-    }
-  }, "\uD83C\uDFC6 Biggest Win"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 15,
-      color: "var(--txt)",
-      lineHeight: 1.5
-    }
-  }, thisReview.win)), thisReview.skipped && /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: "14px 16px",
-      borderBottom: "0.5px solid var(--sep)"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      fontWeight: 700,
-      color: "var(--txt3)",
-      textTransform: "uppercase",
-      letterSpacing: "0.08em",
-      marginBottom: 6
-    }
-  }, "\u26A0\uFE0F What I Skipped"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 15,
-      color: "var(--txt)",
-      lineHeight: 1.5
-    }
-  }, thisReview.skipped)), thisReview.different && /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: "14px 16px",
-      borderBottom: "0.5px solid var(--sep)"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      fontWeight: 700,
-      color: "var(--txt3)",
-      textTransform: "uppercase",
-      letterSpacing: "0.08em",
-      marginBottom: 6
-    }
-  }, "\uD83D\uDD04 Do Differently"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 15,
-      color: "var(--txt)",
-      lineHeight: 1.5
-    }
-  }, thisReview.different)), /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: "14px 16px",
-      borderBottom: "0.5px solid var(--sep)"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      fontWeight: 700,
-      color: "var(--txt3)",
-      textTransform: "uppercase",
-      letterSpacing: "0.08em",
-      marginBottom: 8
-    }
-  }, "\u26A1 Energy"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 28
-    }
-  }, energyEmoji(thisReview.energy))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: "14px 16px"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      fontWeight: 700,
-      color: "var(--txt3)",
-      textTransform: "uppercase",
-      letterSpacing: "0.08em",
-      marginBottom: 8
-    }
-  }, "\u2B50 Week Rating"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 32,
-      fontWeight: 800,
-      color: ratingColor(thisReview.rating)
-    }
-  }, thisReview.rating, "/5"))), /*#__PURE__*/React.createElement("button", {
-    className: "btn btn-ghost",
-    style: {
-      width: "100%",
-      marginTop: 10,
-      fontSize: 14
-    },
-    onClick: () => {
-      setForm({
-        ...thisReview,
-        done: false
+
+  // ── TIMER (item 8) ───────────────────────────────────────────────────────
+  const [timerSecs, setTimerSecs] = useState(null);
+  const [timerRunning, setTimerRunning] = useState(false);
+  useEffect(() => {
+    if (!timerRunning || timerSecs === null) return;
+    if (timerSecs <= 0) { setTimerRunning(false); try { new Notification("⏰ Review time's up!", {body:"15 minutes done — save your review!",tag:"review_timer"}); } catch {} return; }
+    const t = setTimeout(()=>setTimerSecs(s=>s-1), 1000);
+    return () => clearTimeout(t);
+  }, [timerRunning, timerSecs]);
+  const timerFmt = s => s===null?"15:00":`${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+
+  // ── MISC ─────────────────────────────────────────────────────────────────
+  const bestWk = allReviews.length ? allReviews.reduce((a,b)=>(b[1].blocksPercent||0)>(a[1].blocksPercent||0)?b:a) : null;
+  const worstWk = allReviews.length ? allReviews.reduce((a,b)=>(b[1].blocksPercent||0)<(a[1].blocksPercent||0)?b:a) : null;
+  const correlationData = allReviews.filter(([,r])=>r.energy&&r.blocksPercent).map(([w,r])=>({w,e:r.energy,a:r.blocksPercent,rating:r.rating}));
+  const weekIntention = (() => { try{const h=JSON.parse(localStorage.getItem("daily_intentions_hist")||"{}"); const keys=Object.keys(h).filter(d=>d>=wk).sort(); return keys.length?h[keys[0]]:""; }catch{return "";} })();
+
+  // ── REMINDER ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (typeof Notification==="undefined"||Notification.permission!=="granted") return;
+    const now=new Date(); if(now.getDay()===0&&!isSaved) { const t=new Date(); t.setHours(19,0,0,0); const diff=t-now; if(diff>0&&diff<3600000) setTimeout(()=>{try{new Notification("📓 Weekly Review",{body:"Sunday evening — 15-minute check-in time!",tag:"review_reminder"})}catch{}},diff); }
+  }, []);
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // RENDER
+  // ══════════════════════════════════════════════════════════════════════════
+  const C = React.createElement;
+  const card = (children, style={}) => C("div",{className:"card card-p",style:{marginBottom:10,...style}},children);
+  const label = txt => C("div",{style:{fontSize:11,fontWeight:700,color:"var(--txt3)",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}},txt);
+  const ta = (val,onChange,placeholder,rows=2) => C("textarea",{value:val,onChange:e=>onChange(e.target.value),placeholder,rows,style:{width:"100%",background:"transparent",border:"none",fontSize:14,color:"var(--txt)",fontFamily:"inherit",resize:"none",outline:"none"}});
+
+  return C("div",{className:"fu"},
+
+    // HEADER
+    C("div",{style:{marginBottom:16}},
+      C("div",{style:{fontSize:13,fontWeight:600,color:"var(--acc)",marginBottom:4}},"Weekly Review"),
+      C("div",{style:{fontSize:26,fontWeight:800,letterSpacing:"-0.03em",lineHeight:1}},"Sunday Check-in"),
+      C("div",{style:{fontSize:13,color:"var(--txt2)",marginTop:4}},"Honest. 15 minutes. Every week.")
+    ),
+
+    // CHIPS
+    C("div",{className:"chips",style:{marginBottom:12}},
+      [[streak,"Week Streak","var(--gold)"],[allReviews.length,"Reviews Done","var(--blue)"],[`${blocksPercent}%`,"This Week","var(--acc)"]].map(([v,l,c])=>
+        C("div",{key:l,className:"chip",style:{flex:1}},C("div",{className:"chip-n",style:{color:c,fontSize:20}},v),C("div",{className:"chip-l"},l))
+      )
+    ),
+
+    // MILESTONE
+    (latestMilestone||nextMilestone) && C("div",{style:{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",background:"var(--sur2)",borderRadius:10,marginBottom:12,border:"0.5px solid var(--bdr2)"}},
+      latestMilestone && C("span",{style:{fontSize:20}},latestMilestone[1]),
+      C("div",{style:{flex:1}},
+        latestMilestone && C("div",{style:{fontSize:13,fontWeight:700,color:"var(--acc)"}},latestMilestone[2]," achieved! 🎉"),
+        nextMilestone && C("div",{style:{fontSize:12,color:"var(--txt3)"}},`${nextMilestone[0]-streak} week${nextMilestone[0]-streak!==1?"s":""} until ${nextMilestone[1]} ${nextMilestone[2]}`)
+      )
+    ),
+
+    // MISSED WEEK WARNING (item 2)
+    missedLastWeek && C("div",{style:{padding:"8px 12px",background:"rgba(255,77,109,0.08)",borderRadius:8,marginBottom:12,fontSize:12,color:"var(--red)",borderLeft:"2px solid var(--red)"}},
+      "⚠️ You missed last week's review — ",C("button",{onClick:()=>{setView("history");setEditingWk(lastWkKey)},style:{background:"transparent",border:"none",color:"var(--acc)",fontSize:12,cursor:"pointer",textDecoration:"underline"}},"fill it in now")
+    ),
+
+    // TIMER (item 8)
+    C("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:14}},
+      C("div",{style:{fontFamily:"var(--mono)",fontSize:20,fontWeight:700,color:timerSecs!==null&&timerSecs<60?"var(--red)":"var(--txt2)",minWidth:52}},timerFmt(timerSecs)),
+      C("button",{className:`btn btn-sm ${timerRunning?"btn-danger":"btn-ghost"}`,onClick:()=>{
+        if(!timerRunning&&timerSecs===null){setTimerSecs(900);}
+        setTimerRunning(r=>!r);
+      }},timerRunning?"⏸ Pause":timerSecs===null?"⏱ Start 15min":"▶ Resume"),
+      timerSecs!==null&&!timerRunning&&C("button",{className:"btn btn-ghost btn-sm",onClick:()=>{setTimerSecs(null);setTimerRunning(false);}},"Reset")
+    ),
+
+    // SEG CTRL
+    C("div",{className:"seg-ctrl",style:{marginBottom:16}},
+      C("button",{className:`seg-btn${view==="this"?" on":""}`,onClick:()=>setView("this")},"📝 Week"),
+      C("button",{className:`seg-btn${view==="goals"?" on":""}`,onClick:()=>setView("goals")},"🎯 Goals"),
+      C("button",{className:`seg-btn${view==="history"?" on":""}`,onClick:()=>setView("history")},"📊 History"),
+      C("button",{className:`seg-btn${view==="monthly"?" on":""}`,onClick:()=>setView("monthly")},"📅 Monthly"),
+      C("button",{className:`seg-btn${view==="stats"?" on":""}`,onClick:()=>setView("stats")},"📈 Stats"),
+      C("button",{className:"seg-btn",onClick:()=>{
+        const lines2=["# Weekly Review Journal\n",`Exported: ${new Date().toLocaleDateString("en-ZA")}\n`];
+        allReviews.forEach(([w,r])=>{lines2.push(`\n## ${weekLabel(w)}`);lines2.push(`Rating: ${r.rating||0}/5  Energy: ${energyEmoji(r.energy)}`);lines2.push(`Blocks: ${r.blocksDone||0}/${r.blocksTotal||0} (${r.blocksPercent||0}%)`);if(r.win)lines2.push(`✅ Win: ${r.win}`);if(r.skipped)lines2.push(`⚠️ Skipped: ${r.skipped}`);if(r.different)lines2.push(`🔄 Next: ${r.different}`);});
+        const blob=new Blob([lines2.join("\n")],{type:"text/plain"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`reviews-${new Date().toISOString().slice(0,10)}.txt`; a.click();
+      }},"📤")
+    ),
+
+    // ════════════════ THIS WEEK ════════════════
+    view==="this" && C("div",null,
+      // attendance card
+      card([
+        C("div",{style:{display:"flex",justifyContent:"space-between",marginBottom:8}},
+          C("div",null,C("div",{style:{fontSize:13,fontWeight:700}},weekLabel(wk)),C("div",{style:{fontSize:12,color:"var(--txt3)",marginTop:2}},`${blocksDone}/${blocksTotal} blocks attended`)),
+          C("div",{style:{fontFamily:"var(--mono)",fontSize:28,fontWeight:800,color:blocksPercent>=70?"var(--acc)":blocksPercent>=50?"var(--gold)":"var(--red)"}},`${blocksPercent}%`)
+        ),
+        C("div",{className:"pbar"},C("div",{className:"pbar-fill",style:{width:`${blocksPercent}%`,background:blocksPercent>=70?"var(--acc)":blocksPercent>=50?"var(--gold)":"var(--red)"}}))
+      ],{borderLeft:`4px solid ${blocksPercent>=70?"var(--acc)":blocksPercent>=50?"var(--gold)":"var(--red)"}`}),
+
+      // per-programme breakdown (item 5)
+      progBlocks.length>0 && card([
+        label("📚 By Programme"),
+        C("div",{style:{display:"flex",flexDirection:"column",gap:6}},
+          progBlocks.map(({p,t,d,pct})=>C("div",{key:p,style:{display:"flex",alignItems:"center",gap:8}},
+            C("div",{style:{fontSize:11,fontWeight:700,width:60,color:"var(--txt2)",flexShrink:0}},p),
+            C("div",{className:"pbar",style:{flex:1}},C("div",{className:"pbar-fill",style:{width:`${pct}%`,background:pct>=70?"var(--acc)":pct>=50?"var(--gold)":"var(--red)"}})),
+            C("div",{style:{fontSize:11,fontFamily:"var(--mono)",color:pct>=70?"var(--acc)":pct>=50?"var(--gold)":"var(--red)",width:36,textAlign:"right",flexShrink:0}},`${pct}%`)
+          ))
+        )
+      ]),
+
+      // carry-forward (item 1)
+      carryForward && !isSaved && card([
+        label("🔄 Carry-forward from last week"),
+        C("div",{style:{fontSize:13,color:"var(--ora)",fontStyle:"italic",marginBottom:6}},`"${carryForward}"`),
+        C("div",{style:{fontSize:12,color:"var(--txt3)"}},"Did you act on this?")
+      ],{borderLeft:"2px solid var(--ora)"}),
+
+      // intention
+      weekIntention && !isSaved && C("div",{style:{padding:"8px 12px",background:"var(--acc-dim)",borderRadius:8,marginBottom:10,fontSize:12,color:"var(--acc)",borderLeft:"2px solid var(--acc)"}},
+        C("span",{style:{fontWeight:600}},"This week's intention: "),"\u201C",weekIntention,"\u201D"
+      ),
+
+      // goals progress
+      weekGoals.length>0 && card([
+        C("div",{style:{fontSize:11,fontWeight:700,color:"var(--txt3)",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}},
+          "🎯 Goals — ",weekGoals.filter(g=>g.done).length,"/",weekGoals.length," done"
+        ),
+        weekGoals.map((g,i)=>C("div",{key:i,onClick:()=>togGoal(i),style:{display:"flex",alignItems:"center",gap:8,padding:"6px 0",cursor:"pointer",borderBottom:i<weekGoals.length-1?"0.5px solid var(--sep)":"none"}},
+          C("div",{style:{width:20,height:20,borderRadius:"50%",border:`2px solid ${g.done?"var(--acc)":"var(--bdr3)"}`,background:g.done?"var(--acc)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#fff",fontWeight:700,flexShrink:0}},g.done?"✓":""),
+          C("div",{style:{fontSize:14,color:g.done?"var(--txt3)":"var(--txt)",textDecoration:g.done?"line-through":"none"}},g.t)
+        ))
+      ]),
+
+      // smart prompt (item 6)
+      !isSaved && C("div",{style:{padding:"10px 14px",background:"linear-gradient(135deg,var(--bg2),var(--sur))",borderRadius:10,marginBottom:12,fontSize:13,color:"var(--txt2)",fontStyle:"italic",borderLeft:"2px solid var(--acc)"}},
+        "💬 ",smartPrompt
+      ),
+
+      !isSaved && C("div",null,
+        card([label("🏆 Biggest win this week"), ta(form.win, v=>setForm(p=>({...p,win:v})), "What went well?")]),
+        card([label("⚠️ What did you skip?"), ta(form.skipped, v=>setForm(p=>({...p,skipped:v})), "Any blocks or tasks skipped?")]),
+        card([label("🔄 Do differently next week"), ta(form.different, v=>setForm(p=>({...p,different:v})), "One thing to change?")]),
+        card([label("⭐ Rate this week"), C(StarRow,{val:form.rating,onChange:v=>setForm(p=>({...p,rating:v}))})]),
+        card([label("⚡ Energy level"), C(EnergyRow,{val:form.energy,onChange:v=>setForm(p=>({...p,energy:v}))})]),
+        C("button",{className:"btn btn-primary",style:{width:"100%"},onClick:saveForm},"Save Review")
+      ),
+
+      isSaved && C("div",null,
+        card([
+          C("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}},
+            C("div",{style:{fontSize:11,fontWeight:700,color:"var(--txt3)",textTransform:"uppercase"}},"🏆 Win"),
+            C("div",{style:{display:"flex",gap:6}},
+              C("button",{onClick:()=>shareWeek(wk,thisReview),style:{fontFamily:"inherit",fontSize:11,padding:"2px 8px",borderRadius:6,border:"1px solid var(--bdr2)",background:"transparent",color:"var(--txt3)",cursor:"pointer"}},"📤"),
+              C("button",{onClick:()=>startEdit(wk,thisReview),style:{fontFamily:"inherit",fontSize:11,padding:"2px 8px",borderRadius:6,border:"1px solid var(--bdr2)",background:"transparent",color:"var(--txt3)",cursor:"pointer"}},"✏️")
+            )
+          ),
+          C("div",{style:{fontSize:14,color:"var(--txt)"}},thisReview.win)
+        ],{borderLeft:"4px solid var(--acc)"}),
+        thisReview.skipped && card([label("⚠️ Skipped"),C("div",{style:{fontSize:14,color:"var(--txt)"}},thisReview.skipped)]),
+        thisReview.different && card([label("🔄 Next time"),C("div",{style:{fontSize:14,color:"var(--txt)"}},thisReview.different)]),
+        C("div",{className:"chips",style:{marginBottom:12}},
+          C("div",{className:"chip",style:{flex:1}},C("div",{className:"chip-n",style:{color:ratingColor(thisReview.rating),fontSize:18}},"⭐".repeat(thisReview.rating||0)||"—"),C("div",{className:"chip-l"},"Rating")),
+          C("div",{className:"chip",style:{flex:1}},C("div",{className:"chip-n",style:{fontSize:22}},energyEmoji(thisReview.energy)),C("div",{className:"chip-l"},"Energy"))
+        ),
+        // goals vs actuals (item 3)
+        goalsVsActuals.length>0 && card([
+          label("🎯 Goals vs Actuals"),
+          goalsVsActuals.map((g,i)=>C("div",{key:i,style:{display:"flex",gap:8,alignItems:"center",padding:"5px 0",borderBottom:i<goalsVsActuals.length-1?"0.5px solid var(--sep)":"none"}},
+            C("span",{style:{fontSize:14}},g.done?"✅":g.matched?"🟡":"❌"),
+            C("div",{style:{flex:1,fontSize:13,color:"var(--txt)"}},g.t)
+          ))
+        ]),
+        // AI Insight via Gemini
+        C("div",{className:"card card-p",style:{marginBottom:10,background:"linear-gradient(135deg,var(--bg2),var(--sur))",border:"1px solid var(--acc)33"}},
+          C("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:aiInsight?.wk===wk?8:0}},
+            C("div",{style:{fontSize:12,fontWeight:700,color:"var(--acc)"}},"✨ AI Insight"),
+            C("button",{onClick:fetchAiInsight,disabled:aiLoading,className:"btn btn-ghost btn-sm",style:{fontSize:11}},aiLoading?"Thinking…":aiInsight?.wk===wk?"Refresh":"Generate")
+          ),
+          aiInsight?.wk===wk && C("div",{style:{fontSize:13,color:"var(--txt2)",lineHeight:1.65,whiteSpace:"pre-line"}},aiInsight.text)
+        )
+      )
+    ),
+
+    // ════════════════ GOALS ════════════════
+    view==="goals" && C("div",null,
+      C("div",{style:{fontSize:12,color:"var(--txt2)",marginBottom:12,padding:"0 4px"}},"Set up to 3 goals at the start of each week. Check them off on Sunday."),
+      weekGoals.length<3 && card([
+        C("div",{style:{display:"flex",gap:8}},
+          C("input",{value:goalInput,onChange:e=>setGoalInput(e.target.value),onKeyDown:e=>e.key==="Enter"&&addGoal(),placeholder:`Goal ${weekGoals.length+1} for this week…`,style:{flex:1,background:"transparent",border:"none",fontSize:14,color:"var(--txt)",outline:"none"}}),
+          C("button",{onClick:addGoal,className:"btn btn-primary btn-sm"},"Add")
+        )
+      ]),
+      weekGoals.length===0
+        ? C("div",{style:{textAlign:"center",padding:"40px 16px",color:"var(--txt3)"}},"📋 No goals set for this week")
+        : C("div",{className:"list-card"},weekGoals.map((g,i)=>C("div",{key:i,style:{display:"flex",alignItems:"center",gap:10,padding:"12px 16px",borderBottom:i<weekGoals.length-1?"0.5px solid var(--sep)":"none",cursor:"pointer"},onClick:()=>togGoal(i)},
+            C("div",{style:{width:24,height:24,borderRadius:"50%",border:`2px solid ${g.done?"var(--acc)":"var(--bdr3)"}`,background:g.done?"var(--acc)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#fff",fontWeight:700,flexShrink:0}},g.done?"✓":""),
+            C("div",{style:{flex:1,fontSize:14,color:g.done?"var(--txt3)":"var(--txt)",textDecoration:g.done?"line-through":"none"}},g.t),
+            C("button",{onClick:e=>{e.stopPropagation();saveGoals(weekGoals.filter((_,j)=>j!==i));},style:{background:"transparent",border:"none",color:"var(--txt3)",fontSize:14,cursor:"pointer"}},"✕")
+          ))),
+      allReviews.length>0 && C("div",{style:{marginTop:20}},
+        C("div",{style:{fontSize:11,fontWeight:700,color:"var(--txt3)",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:10}},"Previous Weeks"),
+        Object.entries(goals).filter(([w])=>w!==wk).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,4).map(([w,wg])=>
+          card([
+            C("div",{style:{fontSize:12,fontWeight:700,color:"var(--txt2)",marginBottom:6}},weekLabel(w)," — ",wg.filter(g=>g.done).length,"/",wg.length," done"),
+            wg.map((g,i)=>C("div",{key:i,style:{fontSize:13,color:g.done?"var(--acc)":"var(--txt3)",display:"flex",gap:6,marginBottom:3}},C("span",null,g.done?"✅":"❌"),g.t))
+          ])
+        )
+      )
+    ),
+
+    // ════════════════ HISTORY ════════════════
+    view==="history" && C("div",null,
+      allReviews.length===0
+        ? C("div",{style:{padding:"48px 16px",textAlign:"center"}},C("div",{style:{fontSize:48,marginBottom:12}},"📓"),C("div",{style:{fontSize:17,fontWeight:600,marginBottom:6}},"No reviews yet"),C("div",{style:{fontSize:14,color:"var(--txt2)"}},"Complete this week's review first."))
+        : C(React.Fragment,null,
+            // best/worst
+            bestWk&&worstWk&&bestWk[0]!==worstWk[0] && card([
+              label("⚡ Your Range"),
+              C("div",{style:{display:"flex",gap:8}},
+                C("div",{style:{flex:1,padding:"10px 12px",background:"var(--acc-dim)",borderRadius:8}},C("div",{style:{fontSize:10,fontWeight:700,color:"var(--acc)",marginBottom:4}},"🏆 BEST"),C("div",{style:{fontSize:18,fontWeight:800,color:"var(--acc)"}},`${bestWk[1].blocksPercent||0}%`),C("div",{style:{fontSize:11,color:"var(--txt3)"}},weekLabel(bestWk[0]))),
+                C("div",{style:{flex:1,padding:"10px 12px",background:"rgba(255,77,109,0.08)",borderRadius:8}},C("div",{style:{fontSize:10,fontWeight:700,color:"var(--red)",marginBottom:4}},"📉 TOUGHEST"),C("div",{style:{fontSize:18,fontWeight:800,color:"var(--red)"}},`${worstWk[1].blocksPercent||0}%`),C("div",{style:{fontSize:11,color:"var(--txt3)"}},weekLabel(worstWk[0])))
+              ),
+              C("div",{style:{fontSize:12,color:"var(--txt2)",marginTop:10}},`Spread: ${(bestWk[1].blocksPercent||0)-(worstWk[1].blocksPercent||0)}pp — `,(bestWk[1].blocksPercent||0)-(worstWk[1].blocksPercent||0)>30?"work on consistency 💪":"very consistent ✅")
+            ]),
+            // correlation
+            correlationData.length>=3 && card([
+              label("😊 Energy vs Attendance"),
+              C("div",{style:{position:"relative",height:100,background:"var(--sur2)",borderRadius:8,marginBottom:6}},
+                correlationData.map((d,i)=>C("div",{key:i,style:{position:"absolute",left:`${((d.e-1)/4)*85+5}%`,bottom:`${(d.a/100)*85+5}%`,width:10,height:10,borderRadius:"50%",background:ratingColor(d.rating),transform:"translate(-50%,-50%)",opacity:0.85}}))
+              ),
+              C("div",{style:{display:"flex",justifyContent:"space-between",fontSize:10,color:"var(--txt3)"}},C("span",null,"😴 Low"),C("span",null,"🔥 High")),
+              (() => { const h=correlationData.filter(d=>d.e>=4),l=correlationData.filter(d=>d.e<=2); const ha=h.length?Math.round(h.reduce((a,b)=>a+b.a,0)/h.length):null,la=l.length?Math.round(l.reduce((a,b)=>a+b.a,0)/l.length):null; return ha&&la?C("div",{style:{fontSize:12,color:"var(--txt2)",marginTop:8}},`High energy: ${ha}% avg attendance · Low energy: ${la}%`):null; })()
+            ]),
+            // rating bars
+            card([
+              label("Rating Trend"),
+              C("div",{style:{display:"flex",gap:4,alignItems:"flex-end",height:80}},
+                allReviews.slice(0,8).reverse().map(([w,r])=>C("div",{key:w,style:{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}},
+                  C("div",{style:{fontSize:9,fontWeight:700,color:ratingColor(r.rating)}},r.rating||0),
+                  C("div",{style:{width:"100%",borderRadius:"3px 3px 0 0",height:`${(r.rating||0)/5*64}px`,background:ratingColor(r.rating),minHeight:4}}),
+                  C("div",{style:{fontSize:8,color:"var(--txt3)",textAlign:"center"}},new Date(w+"T00:00:00").toLocaleDateString("en-ZA",{day:"numeric",month:"short"}))
+                ))
+              )
+            ]),
+            // history cards + edit (item 3) + share (item 7)
+            allReviews.map(([w,r])=>
+              editingWk===w
+                ? C("div",{key:w,className:"card card-p",style:{marginBottom:8,borderLeft:"4px solid var(--gold)"}},
+                    C("div",{style:{fontSize:13,fontWeight:700,marginBottom:10}},"✏️ Editing ",weekLabel(w)),
+                    ta(editForm.win||"",v=>setEditForm(p=>({...p,win:v})),"Win"),
+                    ta(editForm.different||"",v=>setEditForm(p=>({...p,different:v})),"Do differently"),
+                    C("div",{style:{display:"flex",gap:8,marginTop:8,marginBottom:8}},C(StarRow,{val:editForm.rating||0,onChange:v=>setEditForm(p=>({...p,rating:v}))}),C(EnergyRow,{val:editForm.energy||0,onChange:v=>setEditForm(p=>({...p,energy:v}))})),
+                    C("div",{style:{display:"flex",gap:8}},C("button",{onClick:saveEdit,className:"btn btn-primary",style:{flex:1}},"Save"),C("button",{onClick:()=>setEditingWk(null),className:"btn btn-ghost",style:{flex:1}},"Cancel"))
+                  )
+                : C("div",{key:w,className:"card card-p",style:{marginBottom:8,borderLeft:`4px solid ${ratingColor(r.rating)}`}},
+                    C("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
+                      C("div",null,C("div",{style:{fontSize:13,fontWeight:700}},weekLabel(w)),C("div",{style:{fontSize:12,color:"var(--txt3)",marginTop:1}},`${r.blocksDone||0}/${r.blocksTotal||0} · ${r.blocksPercent||0}%`)),
+                      C("div",{style:{display:"flex",alignItems:"center",gap:6}},
+                        C("div",{style:{textAlign:"right"}},C("div",{style:{fontSize:13}},"⭐".repeat(r.rating||0)||"—"),C("div",{style:{fontSize:12}},energyEmoji(r.energy))),
+                        C("button",{onClick:()=>shareWeek(w,r),style:{background:"transparent",border:"none",fontSize:13,cursor:"pointer",color:"var(--txt3)",padding:"4px"}},"📤"),
+                        C("button",{onClick:()=>startEdit(w,r),style:{background:"transparent",border:"none",fontSize:13,cursor:"pointer",color:"var(--txt3)",padding:"4px"}},"✏️")
+                      )
+                    ),
+                    r.win&&C("div",{style:{fontSize:12,color:"var(--acc)",marginTop:6}},"🏆 ",r.win)
+                  )
+            )
+          )
+    ),
+
+    // ════════════════ MONTHLY (item 4) ════════════════
+    view==="monthly" && C("div",null,
+      monthlySummary.length===0
+        ? C("div",{style:{textAlign:"center",padding:"40px 16px",color:"var(--txt3)"}},"📅 Need at least 4 reviews for monthly summaries")
+        : monthlySummary.map(m=>C("div",{key:m.mo,className:"card card-p",style:{marginBottom:12}},
+            C("div",{style:{fontSize:15,fontWeight:800,marginBottom:10}},m.label),
+            C("div",{className:"chips",style:{marginBottom:10}},
+              [[`${m.avgAtt}%`,"Avg Attendance","var(--acc)"],[`${m.avgRating}/5`,"Avg Rating","var(--gold)"],[energyEmoji(Math.round(m.avgEnergy)),"Avg Energy","var(--txt)"]].map(([v,l,c])=>
+                C("div",{key:l,className:"chip",style:{flex:1}},C("div",{className:"chip-n",style:{color:c,fontSize:16}},v),C("div",{className:"chip-l"},l))
+              )
+            ),
+            C("div",{style:{display:"flex",gap:12,fontSize:12,color:"var(--txt2)"}},
+              C("span",null,"📋 ",m.weeks," week",m.weeks!==1?"s":""),
+              m.goalsPossible>0&&C("span",null,"🎯 ",m.goalsHit,"/",m.goalsPossible," goals")
+            )
+          ))
+    ),
+
+    // ════════════════ STATS ════════════════
+    view==="stats" && C(StatsPanel,{checked,slots:safeSlots})
+
+  );
+}
+
+// ── GLOBAL STATS TAB ─────────────────────────────────────────────────────────
+function GlobalStatsTab({ checked, slots, wk }) {
+  const safeSlots = slots && Array.isArray(slots) ? slots : [];
+  const reviews = LS("reviews_v1");
+  const deadlines = LS("deadlines_v1");
+  const opps = LS("pipeline_opps");
+  const grades = LS("pipeline_grades");
+  const skipReasons = (() => { try { return JSON.parse(localStorage.getItem("skip_reasons") || "{}"); } catch { return {}; } })();
+
+  // ── PROGRAMME HEALTH ──────────────────────────────────────────────────────
+  const progHealth = useMemo(() => {
+    const progs = {};
+    safeSlots.forEach(s => {
+      if (s.sec === "SLEEP") return;
+      DAYS.forEach(d => {
+        const sl = s[d]; if (!sl || LIFE.has(sl.type)) return;
+        const p = BM[sl.type]?.p || sl.type;
+        if (!progs[p]) progs[p] = { total: 0, done: 0 };
+        progs[p].total++;
+        // count last 4 weeks
+        for (let w = 0; w < 4; w++) {
+          const dt = new Date(); dt.setDate(dt.getDate() - dt.getDay() - 1 - w * 7);
+          const wkStr = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate() - (dt.getDay() + 6) % 7).toISOString().slice(0, 10);
+          const k = `${wkStr}_${s.time}_${d}`;
+          if (checked[k]) progs[p].done++;
+        }
       });
-    }
-  }, "\u270F\uFE0F Edit this review")) :
-  /*#__PURE__*/
-  /* ── FORM ── */
-  React.createElement("div", {
-    className: "list-card"
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: "16px"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      fontWeight: 700,
-      color: "var(--txt)",
-      marginBottom: 4
-    }
-  }, "\uD83C\uDFC6 Biggest win this week"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: "var(--txt2)",
-      marginBottom: 10
-    }
-  }, "One sentence. What went right?"), /*#__PURE__*/React.createElement("textarea", {
-    value: form.win,
-    onChange: e => setForm(p => ({
-      ...p,
-      win: e.target.value
-    })),
-    placeholder: "e.g. Finished all MAT1512 exercises, didn't skip the 05:00 block once...",
-    style: {
-      minHeight: 70,
-      fontSize: 14,
-      borderRadius: 10,
-      border: "1px solid var(--bdr2)",
-      padding: "10px 12px",
-      width: "100%",
-      background: "var(--sur2)",
-      color: "var(--txt)",
-      resize: "none",
-      outline: "none"
-    }
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: "16px",
-      borderTop: "0.5px solid var(--sep)"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      fontWeight: 700,
-      color: "var(--txt)",
-      marginBottom: 4
-    }
-  }, "\u26A0\uFE0F What did you avoid or skip?"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: "var(--txt2)",
-      marginBottom: 10
-    }
-  }, "Be honest. No judgment."), /*#__PURE__*/React.createElement("textarea", {
-    value: form.skipped,
-    onChange: e => setForm(p => ({
-      ...p,
-      skipped: e.target.value
-    })),
-    placeholder: "e.g. Kept pushing COS1512 to tomorrow, skipped Sunday UNISA session...",
-    style: {
-      minHeight: 70,
-      fontSize: 14,
-      borderRadius: 10,
-      border: "1px solid var(--bdr2)",
-      padding: "10px 12px",
-      width: "100%",
-      background: "var(--sur2)",
-      color: "var(--txt)",
-      resize: "none",
-      outline: "none"
-    }
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: "16px",
-      borderTop: "0.5px solid var(--sep)"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      fontWeight: 700,
-      color: "var(--txt)",
-      marginBottom: 4
-    }
-  }, "\u26A1 Energy level this week"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: "var(--txt2)",
-      marginBottom: 12
-    }
-  }, "How did your body and mind feel overall?"), /*#__PURE__*/React.createElement(EnergyRow, {
-    val: form.energy,
-    onChange: v => setForm(p => ({
-      ...p,
-      energy: v
-    }))
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: "16px",
-      borderTop: "0.5px solid var(--sep)"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      fontWeight: 700,
-      color: "var(--txt)",
-      marginBottom: 4
-    }
-  }, "\uD83D\uDD04 One thing to do differently next week"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: "var(--txt2)",
-      marginBottom: 10
-    }
-  }, "Specific. Actionable. One thing only."))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: "16px",
-      borderTop: "0.5px solid var(--sep)"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      fontWeight: 700,
-      color: "var(--txt)",
-      marginBottom: 4
-    }
-  }, "\u2B50 Overall week rating"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: "var(--txt2)",
-      marginBottom: 12
-    }
-  }, "Gut feeling. How was this week?"), /*#__PURE__*/React.createElement(StarRow, {
-    val: form.rating,
-    onChange: v => setForm(p => ({
-      ...p,
-      rating: v
-    }))
-  }), form.rating > 0 && /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      color: "var(--txt2)",
-      marginTop: 8,
-      fontStyle: "italic"
-    }
-  }, ["", "Hard week — you survived 💪", "Below average — identify the gap", "Decent — keep pushing", "Good week — build on this 🔥", "Outstanding — document what worked 🏆"][form.rating])), /*#__PURE__*/React.createElement("div", {
-    style: { padding: "16px", borderTop: "0.5px solid var(--sep)" }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: { fontSize: 13, fontWeight: 700, color: "var(--txt)", marginBottom: 4 }
-  }, "📚 Communication this week"), /*#__PURE__*/React.createElement("div", {
-    style: { fontSize: 12, color: "var(--txt2)", marginBottom: 12 }
-  }, "Tick what you did — reading, writing, speaking out loud."), /*#__PURE__*/React.createElement("div", {
-    style: { display: "flex", gap: 8, flexWrap: "wrap" }
-  }, [["📖 Read", "comm_read"], ["✍️ Wrote", "comm_wrote"], ["🎤 Spoke", "comm_spoke"], ["🤖 AWS AI/ML", "comm_awsml"]].map(function(item) {
-    var label = item[0], key = item[1];
-    return /*#__PURE__*/React.createElement("button", {
-      key: key,
-      onClick: function() { setForm(function(p) { var n = Object.assign({}, p); n[key] = !p[key]; return n; }); },
-      style: {
-        fontFamily: "inherit", fontSize: 12, fontWeight: 600,
-        padding: "6px 14px", borderRadius: 99,
-        border: "1.5px solid " + (form[key] ? "var(--acc)" : "var(--bdr2)"),
-        background: form[key] ? "var(--acc-dim)" : "transparent",
-        color: form[key] ? "var(--acc)" : "var(--txt2)", cursor: "pointer"
-      }
-    }, label);
-  }))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: "16px",
-      borderTop: "0.5px solid var(--sep)"
-    }
-  }, /*#__PURE__*/React.createElement("button", {
-    className: "btn btn-primary",
-    style: {
-      width: "100%",
-      fontSize: 16,
-      padding: "15px"
-    },
-    onClick: saveForm,
-    disabled: !form.win.trim() || !form.energy || !form.rating
-  }, "Save This Week's Review"), (!form.win.trim() || !form.energy || !form.rating) && /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: "var(--txt3)",
-      textAlign: "center",
-      marginTop: 8
-    }
-  }, "Fill in win, energy, and rating to save")))), view === "history" && /*#__PURE__*/React.createElement("div", null, allReviews.length === 0 ? /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: "48px 16px",
-      textAlign: "center"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 48,
-      marginBottom: 12
-    }
-  }, "\uD83D\uDCD3"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 17,
-      fontWeight: 600,
-      marginBottom: 6
-    }
-  }, "No reviews yet"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 14,
-      color: "var(--txt2)"
-    }
-  }, "Complete this week's review first.")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    className: "card card-p",
-    style: {
-      marginBottom: 14
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      fontWeight: 700,
-      color: "var(--txt2)",
-      textTransform: "uppercase",
-      letterSpacing: "0.08em",
-      marginBottom: 14
-    }
-  }, "Week Ratings"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 6,
-      alignItems: "flex-end",
-      height: 80
-    }
-  }, allReviews.slice(0, 8).reverse().map(_ref34 => {
-    let [w, r] = _ref34;
-    return /*#__PURE__*/React.createElement("div", {
-      key: w,
-      style: {
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 4
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 9,
-        fontWeight: 700,
-        color: ratingColor(r.rating)
-      }
-    }, r.rating), /*#__PURE__*/React.createElement("div", {
-      style: {
-        width: "100%",
-        borderRadius: "4px 4px 0 0",
-        height: `${r.rating / 5 * 64}px`,
-        background: ratingColor(r.rating),
-        transition: "height .4s cubic-bezier(.4,0,.2,1)",
-        minHeight: 4
-      }
-    }), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 8,
-        color: "var(--txt3)",
-        textAlign: "center",
-        lineHeight: 1.2
-      }
-    }, new Date(w + "T00:00:00").toLocaleDateString("en-ZA", {
-      day: "numeric",
-      month: "short"
-    })));
-  }))), allReviews.map(_ref35 => {
-    let [w, r] = _ref35;
-    return /*#__PURE__*/React.createElement("div", {
-      key: w,
-      className: "card card-p",
-      style: {
-        marginBottom: 10,
-        borderLeft: `4px solid ${ratingColor(r.rating)}`
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "flex-start",
-        marginBottom: 10
-      }
-    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 13,
-        fontWeight: 700,
-        color: "var(--txt2)"
-      }
-    }, weekLabel(w)), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 12,
-        color: "var(--txt3)",
-        marginTop: 2
-      }
-    }, r.blocksDone, "/", r.blocksTotal, " blocks \xB7 ", r.blocksPercent, "%")), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        gap: 6,
-        alignItems: "center"
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 20
-      }
-    }, energyEmoji(r.energy)), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontFamily: "var(--mono)",
-        fontSize: 22,
-        fontWeight: 800,
-        color: ratingColor(r.rating)
-      }
-    }, r.rating, /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 12,
-        opacity: 0.5
-      }
-    }, "/5")))), r.win && /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 13,
-        color: "var(--acc)",
-        fontWeight: 500,
-        marginBottom: 6
-      }
-    }, "\uD83C\uDFC6 ", r.win), r.different && /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 12,
-        color: "var(--txt2)",
-        fontStyle: "italic"
-      }
-    }, "\uD83D\uDD04 ", r.different));
-  })));
+    });
+    return Object.entries(progs).map(([p, v]) => {
+      const weeklyTotal = v.total * 4;
+      const pct = weeklyTotal ? Math.round(v.done / weeklyTotal * 100) : 0;
+      const color = p === "ECP" ? "var(--blue)" : p === "UNISA" ? "var(--acc)" : p === "ALX" ? "var(--ora)" : p === "AMAZON" ? "var(--gold)" : p === "AWS" ? "#ff9900" : "var(--txt2)";
+      const health = pct >= 70 ? "🟢" : pct >= 50 ? "🟡" : "🔴";
+      return { p, pct, color, health, done: v.done, total: weeklyTotal };
+    }).sort((a, b) => b.pct - a.pct);
+  }, [safeSlots, checked]);
+
+  // ── STREAK & REVIEW STATS ─────────────────────────────────────────────────
+  const reviewList = Object.values(reviews).filter(r => r.done);
+  const avgRating = reviewList.length ? (reviewList.reduce((a, r) => a + (r.rating || 0), 0) / reviewList.length).toFixed(1) : "—";
+  const avgEnergy = reviewList.length ? (reviewList.reduce((a, r) => a + (r.energy || 0), 0) / reviewList.length).toFixed(1) : "—";
+  const avgAtt = reviewList.length ? Math.round(reviewList.reduce((a, r) => a + (r.blocksPercent || 0), 0) / reviewList.length) : 0;
+
+  // ── DEADLINES STATS ───────────────────────────────────────────────────────
+  const dlList = Object.values(deadlines);
+  const dlDone = dlList.filter(d => d.done).length;
+  const dlOverdue = dlList.filter(d => !d.done && d.date < new Date().toISOString().slice(0, 10)).length;
+
+  // ── PIPELINE STATS ────────────────────────────────────────────────────────
+  const oppList = Object.values(opps);
+  const interviews = oppList.filter(o => o.col === "interview").length;
+  const offers = oppList.filter(o => o.col === "offer").length;
+
+  // ── SKIP PATTERNS ─────────────────────────────────────────────────────────
+  const skipFreq = {};
+  Object.values(skipReasons).forEach(r => { skipFreq[r] = (skipFreq[r] || 0) + 1; });
+  const topSkips = Object.entries(skipFreq).sort((a, b) => b[1] - a[1]).slice(0, 3);
+
+  // ── TOTAL HOURS LOGGED ────────────────────────────────────────────────────
+  const totalChecked = Object.keys(checked).filter(k => checked[k]).length;
+  const hoursLogged = Math.round(totalChecked * 1); // ~1hr per block
+
+  const C = React.createElement;
+  const card = (children, style = {}) => C("div", { className: "card card-p", style: { marginBottom: 12, ...style } }, children);
+  const lbl = txt => C("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 } }, txt);
+
+  return C("div", { className: "fu" },
+    C("div", { style: { marginBottom: 16 } },
+      C("div", { style: { fontSize: 13, fontWeight: 600, color: "var(--acc)", marginBottom: 4 } }, "Overview"),
+      C("div", { style: { fontSize: 26, fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1 } }, "Global Stats"),
+      C("div", { style: { fontSize: 13, color: "var(--txt2)", marginTop: 4 } }, "Your complete performance picture")
+    ),
+
+    // Top chips
+    C("div", { className: "chips", style: { marginBottom: 14 } },
+      [[`${hoursLogged}h`, "Blocks Done", "var(--acc)"],
+       [reviewList.length, "Reviews", "var(--blue)"],
+       [dlDone, "DLs Done", "var(--gold)"],
+       [interviews, "Interviews", "var(--purple)"]
+      ].map(([v, l, c]) => C("div", { key: l, className: "chip", style: { flex: 1 } },
+        C("div", { className: "chip-n", style: { color: c, fontSize: 18 } }, v),
+        C("div", { className: "chip-l" }, l)
+      ))
+    ),
+
+    // Programme health
+    card([
+      lbl("🏥 Programme Health — Last 4 Weeks"),
+      ...progHealth.map(({ p, pct, color, health }) =>
+        C("div", { key: p, style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 8 } },
+          C("span", { style: { fontSize: 14 } }, health),
+          C("div", { style: { fontSize: 12, fontWeight: 700, color, width: 64, flexShrink: 0 } }, p),
+          C("div", { className: "pbar", style: { flex: 1, height: 8, borderRadius: 99 } },
+            C("div", { className: "pbar-fill", style: { width: `${pct}%`, height: "100%", background: color, borderRadius: 99 } })
+          ),
+          C("div", { style: { fontSize: 11, fontFamily: "var(--mono)", color, width: 34, textAlign: "right", flexShrink: 0 } }, `${pct}%`)
+        )
+      )
+    ]),
+
+    // Review summary
+    reviewList.length > 0 && card([
+      lbl("📓 Review Averages"),
+      C("div", { className: "chips" },
+        [["⭐ " + avgRating, "Rating", "var(--gold)"],
+         [["😴","😐","🙂","😊","🔥"][Math.round(avgEnergy)-1]||avgEnergy, "Energy", "var(--acc)"],
+         [`${avgAtt}%`, "Attendance", "var(--blue)"],
+         [reviewList.length, "Weeks", "var(--txt2)"]
+        ].map(([v, l, c]) => C("div", { key: l, className: "chip", style: { flex: 1 } },
+          C("div", { className: "chip-n", style: { color: c, fontSize: 16 } }, v),
+          C("div", { className: "chip-l" }, l)
+        ))
+      )
+    ]),
+
+    // Deadlines health
+    card([
+      lbl("📋 Deadlines"),
+      C("div", { style: { display: "flex", gap: 16, fontSize: 13 } },
+        C("div", null,
+          C("div", { style: { fontFamily: "var(--mono)", fontSize: 24, fontWeight: 800, color: "var(--acc)" } }, dlDone),
+          C("div", { style: { fontSize: 11, color: "var(--txt3)" } }, "completed")
+        ),
+        C("div", null,
+          C("div", { style: { fontFamily: "var(--mono)", fontSize: 24, fontWeight: 800, color: dlOverdue > 0 ? "var(--red)" : "var(--acc)" } }, dlOverdue),
+          C("div", { style: { fontSize: 11, color: "var(--txt3)" } }, "overdue")
+        ),
+        C("div", null,
+          C("div", { style: { fontFamily: "var(--mono)", fontSize: 24, fontWeight: 800, color: "var(--txt2)" } }, dlList.filter(d => !d.done && !d.archived).length),
+          C("div", { style: { fontSize: 11, color: "var(--txt3)" } }, "remaining")
+        )
+      )
+    ]),
+
+    // Pipeline
+    card([
+      lbl("🚀 Pipeline"),
+      C("div", { style: { display: "flex", gap: 12, fontSize: 13 } },
+        [["Applied", oppList.filter(o=>o.col==="applied").length, "var(--txt2)"],
+         ["Interviews", interviews, "var(--purple)"],
+         ["Offers", offers, "var(--acc)"],
+         ["Rejected", oppList.filter(o=>o.col==="rejected").length, "var(--red)"]
+        ].map(([l, v, c]) => C("div", { key: l },
+          C("div", { style: { fontFamily: "var(--mono)", fontSize: 22, fontWeight: 800, color: c } }, v),
+          C("div", { style: { fontSize: 10, color: "var(--txt3)" } }, l)
+        ))
+      )
+    ]),
+
+    // Skip patterns
+    topSkips.length > 0 && card([
+      lbl("⚠️ Top Skip Reasons"),
+      ...topSkips.map(([r, n]) => C("div", { key: r, style: { display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6 } },
+        C("span", null, r),
+        C("span", { style: { fontFamily: "var(--mono)", color: "var(--red)" } }, `${n}×`)
+      ))
+    ])
+  );
 }
 
 // ── NOTIFICATIONS ENGINE ─────────────────────────────────────────────────────
@@ -9236,18 +9764,44 @@ function NotifsTab(_ref36) {
   let {
     deadlines
   } = _ref36;
+  const [notifSection, setNotifSection] = useState("alerts");
   const [perm, setPerm] = useState(() => typeof Notification !== "undefined" ? Notification.permission : "unsupported");
   const [prefs, setPrefs] = useState(() => LS("notif_prefs_v1") || {
-    wake: true,
-    midday: true,
-    alx: true,
-    late: true,
-    sleep: true,
-    deadline: true,
-    deadlines_24h: true,
-    deadlines_day: true
+    wake: true, midday: true, alx: true, late: true, sleep: true,
+    deadline: true, deadlines_24h: true, deadlines_day: true
   });
+  const [customTimes, setCustomTimes] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("notif_custom_times") || "{}"); } catch { return {}; }
+  });
+  const [editingTime, setEditingTime] = useState(null);
+  const [timeInput, setTimeInput] = useState("");
   const [testSent, setTestSent] = useState(false);
+  const [tgMsg, setTgMsg] = useState("");
+  const [tgSending, setTgSending] = useState(false);
+  const [tgStatus, setTgStatus] = useState(null);
+  const sendTelegram = async () => {
+    if (!tgMsg.trim()) return;
+    setTgSending(true); setTgStatus(null);
+    try {
+      const res = await fetch(`https://api.telegram.org/bot8672309810:AAHRJWZwq9b6sCftEgCuuRT_fFz67Mv59hI/sendMessage`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: 937799239, text: "📌 From Schedule App:\n\n" + tgMsg.trim() })
+      });
+      if (res.ok) { setTgStatus("sent"); setTgMsg(""); }
+      else setTgStatus("error");
+    } catch { setTgStatus("error"); }
+    setTgSending(false);
+    setTimeout(() => setTgStatus(null), 3000);
+  };
+  const saveCustomTime = (id, val) => {
+    const n = { ...customTimes, [id]: val };
+    setCustomTimes(n);
+    localStorage.setItem("notif_custom_times", JSON.stringify(n));
+    localStorage.removeItem("notif_last_sched");
+    scheduleNotifications(prefs, deadlines);
+    setEditingTime(null);
+  };
+  const getTime = id => customTimes[id] || REMINDER_DEFS.find(r => r.id === id)?.time || "08:00";
   const savePrefs = p => {
     setPrefs(p);
     LSS("notif_prefs_v1", p);
@@ -9335,7 +9889,54 @@ function NotifsTab(_ref36) {
       color: "var(--txt2)",
       marginTop: 4
     }
-  }, "Local reminders. No server. No account needed.")), /*#__PURE__*/React.createElement("div", {
+  }, "Local reminders. No server. No account needed.")),
+  React.createElement("div", { className: "seg-ctrl", style: { marginBottom: 16 } },
+    React.createElement("button", { className: `seg-btn${notifSection === "alerts" ? " on" : ""}`, onClick: () => setNotifSection("alerts") }, "🔔 Alerts"),
+    React.createElement("button", { className: `seg-btn${notifSection === "settings" ? " on" : ""}`, onClick: () => setNotifSection("settings") }, "⚙️ Settings")
+  ),
+  notifSection === "settings" && React.createElement("div", null,
+    React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt2)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 4px 8px" } }, "Appearance"),
+    React.createElement("div", { className: "list-card", style: { marginBottom: 16 } },
+      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: "0.5px solid var(--sep)" } },
+        React.createElement("div", { style: { flex: 1 } },
+          React.createElement("div", { style: { fontSize: 15, fontWeight: 600 } }, "Light Mode"),
+          React.createElement("div", { style: { fontSize: 12, color: "var(--txt2)", marginTop: 1 } }, "Toggle between dark and light theme")
+        ),
+        React.createElement("label", { className: "ios-toggle" },
+          React.createElement("input", { type: "checkbox", checked: false, onChange: () => { document.body.setAttribute("data-theme", document.body.getAttribute("data-theme") === "light" ? "dark" : "light"); localStorage.setItem("th", document.body.getAttribute("data-theme")); } }),
+          React.createElement("div", { className: "toggle-track" }), React.createElement("div", { className: "toggle-thumb" })
+        )
+      )
+    ),
+    React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt2)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 4px 8px" } }, "Data"),
+    React.createElement("div", { className: "list-card", style: { marginBottom: 16 } },
+      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: "0.5px solid var(--sep)" } },
+        React.createElement("div", { style: { flex: 1 } },
+          React.createElement("div", { style: { fontSize: 15, fontWeight: 600 } }, "Device ID"),
+          React.createElement("div", { style: { fontSize: 11, color: "var(--txt3)", marginTop: 2, fontFamily: "var(--mono)" } }, DEVICE_ID)
+        ),
+        React.createElement("button", { onClick: () => navigator.clipboard?.writeText(DEVICE_ID), style: { fontFamily: "inherit", fontSize: 11, padding: "5px 10px", borderRadius: 8, border: "1px solid var(--bdr2)", background: "transparent", color: "var(--txt3)", cursor: "pointer" } }, "Copy")
+      ),
+      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, padding: "14px 16px" } },
+        React.createElement("div", { style: { flex: 1 } },
+          React.createElement("div", { style: { fontSize: 15, fontWeight: 600 } }, "Export All Data"),
+          React.createElement("div", { style: { fontSize: 12, color: "var(--txt2)", marginTop: 1 } }, "Download a JSON backup of all local data")
+        ),
+        React.createElement("button", { onClick: () => {
+          const data = {};
+          ["sv5","deadlines_v1","must_do_v1","block_notes_v1","reviews_v1","az_star","az_lc","az_lp","pipeline_opps","pipeline_grades","pipeline_papers","exam_events_v1","exam_sessions_v1"].forEach(k => { try { data[k] = JSON.parse(localStorage.getItem(k) || "{}"); } catch { data[k] = {}; } });
+          const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+          const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+          a.download = `schedule-backup-${new Date().toISOString().slice(0,10)}.json`; a.click();
+        }, style: { fontFamily: "inherit", fontSize: 12, fontWeight: 700, padding: "6px 14px", borderRadius: 99, border: "1.5px solid var(--blue)", background: "rgba(77,159,255,0.1)", color: "var(--blue)", cursor: "pointer" } }, "📦 Export")
+      )
+    ),
+    React.createElement("div", { className: "card card-p", style: { marginBottom: 16 } },
+      React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 } }, "About"),
+      React.createElement("div", { style: { fontSize: 13, color: "var(--txt2)", lineHeight: 1.6 } }, "Master Schedule PWA · Built by Junior Kabelo Motsoko · github.com/Junior-Motsoko/schedule")
+    )
+  ),
+  notifSection === "alerts" && /*#__PURE__*/React.createElement("div", {
     className: "card card-p",
     style: {
       marginBottom: 14,
@@ -9429,32 +10030,25 @@ function NotifsTab(_ref36) {
       flexShrink: 0
     }
   }, r.icon), /*#__PURE__*/React.createElement("div", {
-    style: {
-      flex: 1
-    }
+    style: { flex: 1 }
   }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 15,
-      fontWeight: 600
-    }
-  }, r.label), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: "var(--txt2)",
-      marginTop: 1
-    }
-  }, r.time, " \xB7 ", r.body.slice(0, 48), "\u2026")), /*#__PURE__*/React.createElement(IosToggle, {
+    style: { fontSize: 15, fontWeight: 600 }
+  }, r.label),
+  editingTime === r.id
+    ? React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", marginTop: 4 } },
+        React.createElement("input", { type: "time", value: timeInput, onChange: e => setTimeInput(e.target.value), style: { background: "var(--sur2)", border: "1px solid var(--acc)", borderRadius: 6, padding: "3px 8px", fontSize: 13, color: "var(--txt)", fontFamily: "inherit" } }),
+        React.createElement("button", { onClick: () => saveCustomTime(r.id, timeInput), style: { fontFamily: "inherit", fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: "var(--acc-dim)", border: "1px solid var(--acc)", color: "var(--acc)", cursor: "pointer" } }, "Save"),
+        React.createElement("button", { onClick: () => setEditingTime(null), style: { fontFamily: "inherit", fontSize: 11, padding: "3px 6px", borderRadius: 6, background: "transparent", border: "1px solid var(--bdr2)", color: "var(--txt3)", cursor: "pointer" } }, "✕")
+      )
+    : /*#__PURE__*/React.createElement("div", {
+        style: { fontSize: 12, color: "var(--txt2)", marginTop: 1, display: "flex", alignItems: "center", gap: 6 }
+      }, React.createElement("button", { onClick: () => { setEditingTime(r.id); setTimeInput(getTime(r.id)); }, style: { fontFamily: "var(--mono)", fontSize: 12, fontWeight: 700, color: customTimes[r.id] ? "var(--acc)" : "var(--txt2)", background: "transparent", border: "none", cursor: "pointer", padding: 0 } }, getTime(r.id)),
+        r.body.slice(0, 38), "\u2026")
+  ), /*#__PURE__*/React.createElement(IosToggle, {
     on: !!prefs[r.id],
     onChange: () => togglePref(r.id)
   })))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      fontWeight: 700,
-      color: "var(--txt2)",
-      textTransform: "uppercase",
-      letterSpacing: "0.08em",
-      margin: "0 4px 8px"
-    }
+    style: { fontSize: 11, fontWeight: 700, color: "var(--txt2)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 4px 8px" }
   }, "Deadline Alerts"), /*#__PURE__*/React.createElement("div", {
     className: "list-card",
     style: {
@@ -9591,11 +10185,20 @@ function NotifsTab(_ref36) {
       lineHeight: 1.7
     }
   }, "These are ", /*#__PURE__*/React.createElement("strong", {
-    style: {
-      color: "var(--txt)"
-    }
-  }, "local notifications"), " \u2014 they fire when you open the app each day. For best results, open the app once in the morning and leave it running in a browser tab. No server, no account, no data leaves your device.")),
-  /*#__PURE__*/React.createElement(ProgrammeManager, null));
+    style: { color: "var(--txt)" }
+  }, "local notifications"), " \u2014 they fire when you open the app each day. For best results, open the app once in the morning and leave it running in a browser tab. No server, no account, no data leaves your device."),
+  // ── TELEGRAM QUICK SEND ──
+  React.createElement("div", { style: { marginTop: 20 } },
+    React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt2)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 4px 8px" } }, "📨 Send to Telegram"),
+    React.createElement("div", { className: "card card-p" },
+      React.createElement("div", { style: { fontSize: 13, color: "var(--txt2)", marginBottom: 10 } }, "Send a quick note to yourself via @juniorschedule_bot"),
+      React.createElement("textarea", { value: tgMsg, onChange: e => setTgMsg(e.target.value), placeholder: "Type a quick note, reminder, or idea…", rows: 3, style: { width: "100%", background: "var(--sur2)", border: "1px solid var(--bdr2)", borderRadius: 8, padding: "9px 12px", fontSize: 14, color: "var(--txt)", fontFamily: "inherit", resize: "none", outline: "none", marginBottom: 10 } }),
+      React.createElement("button", { className: "btn btn-primary", style: { width: "100%", opacity: tgSending ? 0.6 : 1 }, onClick: sendTelegram, disabled: tgSending || !tgMsg.trim() },
+        tgSending ? "Sending…" : tgStatus === "sent" ? "✅ Sent!" : tgStatus === "error" ? "❌ Failed — check connection" : "Send via Telegram 📨"
+      )
+    )
+  ),
+  /*#__PURE__*/React.createElement(ProgrammeManager, null)));
 }
 
 // ── PROGRAMME MANAGER ────────────────────────────────────────────────────────
