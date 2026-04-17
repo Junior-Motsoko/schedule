@@ -105,13 +105,12 @@
 [data-theme=light] .week-grid{background:var(--sur);}
 [data-theme=light] .lp-card{background:var(--sur);border-color:var(--bdr);}
 [data-theme=light] .star-body textarea{background:var(--sur2);color:var(--txt);}
-[data-theme=light] *[style*="background: linear-gradient(145deg,#1a0a00"]{background:var(--sur)!important;}
-[data-theme=light] *[style*="background: linear-gradient(145deg,#0a3d1e"]{background:linear-gradient(145deg,#e8f8f2,#f5fbf8)!important;}
-[data-theme=light] *[style*="background: linear-gradient(145deg,#1a1500"]{background:linear-gradient(145deg,#fefce8,#fffdf5)!important;}
 [data-theme=light] *[style*="background:\"linear-gradient(135deg,var(--bg2)"]{background:var(--sur)!important;}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 html{height:100%;-webkit-text-size-adjust:100%;}
-body{font-family:var(--sys-font);background:var(--bg);color:var(--txt);min-height:100%;overflow-x:hidden;-webkit-font-smoothing:antialiased;letter-spacing:-0.01em;transition:background 0.4s,color 0.4s;}
+body{font-family:var(--sys-font);background:var(--bg);color:var(--txt);min-height:100%;overflow-x:hidden;-webkit-font-smoothing:antialiased;letter-spacing:-0.01em;transition:background 0.35s ease,color 0.35s ease;}
+*{transition:background-color 0.3s ease,border-color 0.3s ease,color 0.3s ease;}
+button,input,textarea,select{transition:background-color 0.3s ease,border-color 0.3s ease,color 0.3s ease,box-shadow 0.2s ease;}
 button,input,textarea{font-family:inherit;-webkit-tap-highlight-color:transparent;outline:none;}
 ::-webkit-scrollbar{display:none;}
 #root{max-width:430px;margin:0 auto;padding:calc(var(--safe-t) + 12px) 16px calc(var(--nav-h) + 20px);min-height:100vh;}
@@ -201,6 +200,7 @@ textarea:focus{outline:1.5px solid var(--acc);outline-offset:0;border-color:tran
 .chip-n{font-family:var(--mono);font-size:20px;font-weight:500;line-height:1;letter-spacing:-0.03em;}
 .chip-l{font-size:8.5px;font-weight:700;letter-spacing:0.08em;color:var(--txt3);margin-top:3px;text-transform:uppercase;}
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 .fu{}
 .filter-strip{display:flex;gap:6px;overflow-x:auto;margin-bottom:14px;padding-bottom:2px;flex-wrap:nowrap;}
 .filter-strip::-webkit-scrollbar{display:none;}
@@ -619,7 +619,7 @@ const UMODS = [{
   sem: 2,
   c: "#30d158"
 }];
-// ── PROGRAMME MANAGER ────────────────────────────────────────────────────────
+
 const DEFAULT_PROGRAMMES = [
   { k: "ECP", l: "ECP", c: "#2060c0", emoji: "🎓" },
   { k: "UNISA", l: "UNISA", c: "#30d158", emoji: "📚" },
@@ -657,7 +657,6 @@ const EXAM = {
 };
 const daysTo = d => Math.max(0, Math.ceil((d - new Date().setHours(0, 0, 0, 0)) / 86400000));
 
-// ── SUPABASE CLIENT ──────────────────────────────────────────────────────────
 const SUPA_URL = "https://zvizxwwmgxzehbaukyuo.supabase.co";
 const SUPA_KEY = "sb_publishable_FASRdmlsPXmavuknJlejeA_52l9rzp_";
 const GEMINI_KEY = "PASTE_YOUR_GEMINI_KEY_HERE"; // get free key at aistudio.google.com
@@ -702,10 +701,19 @@ const getDeviceId = () => {
 const DEVICE_ID = getDeviceId();
 
 // Sync helpers — write to localStorage immediately, sync to Supabase in background
-const syncToSupa = async (table, data) => { try { await supa.upsert(table, data); } catch {} };
+const _syncListeners = [];
+const onSyncStatus = fn => _syncListeners.push(fn);
+const syncToSupa = async (table, data) => {
+  _syncListeners.forEach(fn => fn("syncing"));
+  try {
+    await supa.upsert(table, data);
+    _syncListeners.forEach(fn => fn("synced"));
+  } catch {
+    _syncListeners.forEach(fn => fn("error"));
+  }
+};
 const deleteFromSupa = async (table, id) => { try { await supa.delete(table, `id=eq.${id}`); } catch {} };
 
-// ── GOOGLE CALENDAR SYNC ─────────────────────────────────────────────────────
 const GCAL_CLIENT_ID = "988296305612-oerq6ak626saln3qrih2osh3erbft24r.apps.googleusercontent.com";
 const GCAL_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 
@@ -770,65 +778,35 @@ const SEC_L = {
   SLEEP: "😴 Sleep"
 };
 
-// ── SKELETON ──────────────────────────────────────────────────────────────────
 function Skeleton() {
-  return /*#__PURE__*/React.createElement("div", {
-    className: "fu"
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 20
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "skel",
-    style: {
-      width: 120,
-      height: 12,
-      marginBottom: 10
-    }
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "skel",
-    style: {
-      width: 200,
-      height: 32,
-      marginBottom: 8
-    }
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "skel",
-    style: {
-      width: 160,
-      height: 12
-    }
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 8,
-      marginBottom: 16
-    }
-  }, [66, 66, 66, 66, 66].map((_, i) => /*#__PURE__*/React.createElement("div", {
-    key: i,
-    className: "skel",
-    style: {
-      width: 66,
-      height: 64,
-      borderRadius: 16
-    }
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "skel",
-    style: {
-      height: 140,
-      borderRadius: 20,
-      marginBottom: 8
-    }
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "skel",
-    style: {
-      height: 320,
-      borderRadius: 20
-    }
-  }));
+  const S = (w, h, r=8, mb=8) => React.createElement("div", { className: "skel", style: { width: w, height: h, borderRadius: r, marginBottom: mb } });
+  return React.createElement("div", { className: "fu", style: { padding: "0 0" } },
+    // Header
+    React.createElement("div", { style: { marginBottom: 20 } },
+      S(140, 12, 6, 10),
+      S(220, 34, 8, 8),
+      S(160, 12, 6, 0)
+    ),
+    // Day pill selector
+    React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 16 } },
+      [48,48,48,48,48,48,48].map((_,i) => React.createElement("div", { key: i, className: "skel", style: { flex: 1, height: 32, borderRadius: 8 } }))
+    ),
+    // Stats row
+    React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 16 } },
+      React.createElement("div", { className: "skel", style: { flex: 1, height: 80, borderRadius: 14 } }),
+      React.createElement("div", { className: "skel", style: { flex: 2, height: 80, borderRadius: 14 } })
+    ),
+    // Hero card
+    React.createElement("div", { className: "skel", style: { height: 120, borderRadius: 16, marginBottom: 12 } }),
+    // Block list
+    ...[1,2,3,4,5].map(i => React.createElement("div", { key: i, style: { display: "flex", gap: 10, alignItems: "center", padding: "10px 0", borderBottom: "0.5px solid var(--sep)" } },
+      React.createElement("div", { className: "skel", style: { width: 40, height: 12, borderRadius: 4, flexShrink: 0 } }),
+      React.createElement("div", { className: "skel", style: { width: 10, height: 10, borderRadius: "50%", flexShrink: 0 } }),
+      React.createElement("div", { className: "skel", style: { flex: 1, height: 14, borderRadius: 6 } })
+    ))
+  );
 }
 
-// ── MAIN APP ──────────────────────────────────────────────────────────────────
 function App() {
   const [loading, setLoading] = useState(true);
   const [onboarded, setOnboarded] = useState(() => {
@@ -843,12 +821,48 @@ function App() {
   const [autoTheme, setAutoTheme] = useState(() => localStorage.getItem("auto_theme") === "1");
   const [pwaPrompt, setPwaPrompt] = useState(null);
   const [showPwaBar, setShowPwaBar] = useState(false);
+  const [todayExpanded, setTodayExpanded] = useState(() => {
+    // Auto-open if there are urgent items today
+    const todayK = new Date().toISOString().slice(0,10);
+    const in3 = new Date(Date.now()+3*86400000).toISOString().slice(0,10);
+    try {
+      const dls = Object.values(JSON.parse(localStorage.getItem("deadlines_v1")||"{}")).filter(d=>!d.done&&d.date>=todayK&&d.date<=in3);
+      const exams = Object.values(JSON.parse(localStorage.getItem("exam_events_v1")||"{}")).filter(e=>Math.ceil((new Date(e.date+"T00:00:00")-new Date())/86400000)<=3);
+      return dls.length > 0 || exams.length > 0;
+    } catch { return false; }
+  });
+
+  const [attContract, setAttContract] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("att_contract") || "null"); } catch { return null; }
+  });
+  const [showContractPrompt, setShowContractPrompt] = useState(() => {
+    // Show on Monday if no contract set for this week
+    const now = new Date();
+    const isMonday = now.getDay() === 1;
+    const wkKey = (() => { const d=new Date(); d.setDate(d.getDate()-(d.getDay()+6)%7); return d.toISOString().slice(0,10); })();
+    const existing = (() => { try { return JSON.parse(localStorage.getItem("att_contract") || "null"); } catch { return null; } })();
+    return isMonday && (!existing || existing.wk !== wkKey);
+  });
+  const saveContract = (target) => {
+    const wkKey = (() => { const d=new Date(); d.setDate(d.getDate()-(d.getDay()+6)%7); return d.toISOString().slice(0,10); })();
+    const c = { wk: wkKey, target, set: new Date().toISOString() };
+    setAttContract(c);
+    localStorage.setItem("att_contract", JSON.stringify(c));
+    setShowContractPrompt(false);
+  };
   useEffect(() => {
     const handler = e => { e.preventDefault(); setPwaPrompt(e); setTimeout(() => setShowPwaBar(true), 30000); };
     window.addEventListener("beforeinstallprompt", handler);
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
   const [isOffline, setIsOffline] = useState(() => !navigator.onLine);
+  const [syncStatus, setSyncStatus] = useState(null); // "syncing"|"synced"|"error"
+  useEffect(() => {
+    onSyncStatus(s => {
+      setSyncStatus(s);
+      if (s === "synced") setTimeout(() => setSyncStatus(null), 2000);
+    });
+  }, []);
   useEffect(() => {
     const onOnline = () => setIsOffline(false);
     const onOffline = () => setIsOffline(true);
@@ -875,7 +889,7 @@ function App() {
   const setFilterM = f => { setFilter(f); localStorage.setItem("last_filter", f); };
   const [checked, setChecked] = useState(() => LS("sv5"));
   const [coll, setColl] = useState({ SLEEP: true, BREAK: false });
-  // ── TODAY ATTENDANCE IMPROVEMENTS ─────────────────────────────────────────
+
   const [attTarget, setAttTarget] = useState(() => parseInt(localStorage.getItem("att_target")||"80"));
   const [aiMorning, setAiMorning] = useState(null);
   const [aiMorningLoading, setAiMorningLoading] = useState(false);
@@ -1018,6 +1032,27 @@ function App() {
     setJustTicked(k);
     setTimeout(() => setJustTicked(null), 400);
     if (navigator.vibrate) navigator.vibrate(40);
+    // Auto-log study session for exam subjects when ticking a block
+    try {
+      const parts = k.split("_");
+      const day2 = parts[parts.length-1];
+      const time2 = parts[parts.length-2];
+      const sl = (SLOTS||[]).find(s=>s.time===time2)?.[day2];
+      if (sl && !LIFE.has(sl.type)) {
+        const prog2 = BM[sl.type]?.p;
+        // Map programmes to exam subject IDs
+        const progToSub = { ECP:"PHY151", UNISA:"COS1511", ALX:"ALX", AWS:"AWS", AMAZON:"AMAZON" };
+        const subId = progToSub[prog2];
+        if (subId) {
+          const existing = JSON.parse(localStorage.getItem("exam_sessions_v1")||"{}");
+          const sessId = `auto_${k}`;
+          if (!existing[sessId]) { // only log once
+            existing[sessId] = { id: sessId, sub: subId, secs: 3600, date: new Date().toISOString().slice(0,10), note: `Auto: ${sl.label||sl.type}`, auto: true };
+            localStorage.setItem("exam_sessions_v1", JSON.stringify(existing));
+          }
+        }
+      }
+    } catch {}
   }, []);
   const reset = () => {
     if (confirm("Reset all ticks for this week?")) {
@@ -1160,30 +1195,56 @@ function App() {
       .filter(b => !checked[b.k] && !dismissedMissed[b.k]);
   }, [slots, checked, dismissedMissed]);
 
-  // ── LIVE CLOCK ────────────────────────────────────────────────────────────
+  const missedStreaks = useMemo(() => {
+    const progMissed = {};
+    const today2 = new Date();
+    for (let back = 1; back <= 5; back++) {
+      const d = new Date(today2); d.setDate(today2.getDate() - back);
+      const dName = DAYS[(d.getDay() + 6) % 7];
+      const wd = new Date(d); wd.setDate(d.getDate()-(d.getDay()+6)%7);
+      const dWk = wd.toISOString().slice(0,10);
+      slots.forEach(s => {
+        const cell = s[dName];
+        if (!cell || LIFE.has(cell.type) || s.sec === "SLEEP" || s.sec === "BREAK") return;
+        const prog = BM[cell.type]?.p || cell.type;
+        const k = `${dWk}_${s.time}_${dName}`;
+        if (!checked[k] && !dismissedMissed[k]) {
+          if (!progMissed[prog]) progMissed[prog] = new Set();
+          progMissed[prog].add(dName);
+        }
+      });
+    }
+    return Object.entries(progMissed)
+      .map(([p, days]) => ({ p, count: days.size }))
+      .filter(x => x.count >= 2)
+      .sort((a, b) => b.count - a.count);
+  }, [slots, checked, dismissedMissed]);
+
   useEffect(() => {
     const iv = setInterval(() => { const n=new Date(); setNowMins(n.getHours()*60+n.getMinutes()); }, 30000);
     return () => clearInterval(iv);
   }, []);
 
-  // ── AI MORNING BRIEFING ───────────────────────────────────────────────────
   const fetchMorningBriefing = async () => {
     setAiMorningLoading(true);
     const toMins = t => { const [h,m]=t.split(":").map(Number); return h*60+m; };
     const todayKey = new Date().toISOString().slice(0,10);
-    const slots2 = slots || [];
-    const dd2 = DAYS[(new Date().getDay()+6)%7];
-    const todayBlocks = slots2.filter(s=>s[dd2]&&!LIFE.has(s[dd2].type)&&s.sec!=="SLEEP").map(s=>({time:s.time,label:s[dd2].label,prog:BM[s[dd2].type]?.p||s[dd2].type,done:!!checked[ck(s.time,dd2)]}));
-    const remaining = todayBlocks.filter(b=>!b.done&&toMins(b.time)>=nowMins);
-    const dls = Object.values(LS("deadlines_v1")).filter(d=>d.date>=todayKey).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,3);
+    const remaining = tblocks.filter(b=>!checked[b.k]&&toMins(b.time)>=nowMins);
+    const dls = Object.values(LS("deadlines_v1")).filter(d=>!d.done&&d.date>=todayKey).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,3);
+    const examEvents = Object.values(LS("exam_events_v1")).filter(e=>{
+      const d = new Date(e.date+"T00:00:00"); const now2=new Date();
+      return d>=now2 && (d-now2)<(14*86400000);
+    }).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,2);
+    const mustLeft = (mustDo[todayStr]||[]).filter(t=>!t.done);
     const prompt = `You are Junior Kabelo Motsoko's personal study coach. Today is ${new Date().toLocaleDateString("en-ZA",{weekday:"long",day:"numeric",month:"long"})}.
 
-Remaining blocks today: ${remaining.map(b=>`${b.time} ${b.label} (${b.prog})`).join(", ")||"none"}
-Completed so far: ${todayBlocks.filter(b=>b.done).length}/${todayBlocks.length} blocks
-Upcoming deadlines: ${dls.map(d=>`${d.title} due ${d.date}`).join(", ")||"none"}
-Weekly attendance: ${weekSummary.pct}%
+Remaining blocks today: ${remaining.map(b=>`${b.time} ${b.label} (${BM[b.type]?.p||b.type})`).join(", ")||"none"}
+Completed: ${tblocks.filter(b=>checked[b.k]).length}/${tblocks.length} blocks · Weekly: ${weekSummary.pct}%
+Must-dos left: ${mustLeft.map(t=>t.t).join(", ")||"none"}
+Urgent deadlines: ${dls.map(d=>`${d.title} (${d.date})`).join(", ")||"none"}
+Upcoming milestones: ${examEvents.map(e=>`${e.title} in ${Math.ceil((new Date(e.date+"T00:00:00")-new Date())/86400000)}d`).join(", ")||"none"}
 
-Give a SHORT motivational morning/afternoon briefing (max 60 words, 2-3 sentences). Be specific to his actual schedule today. Direct, energising, South African. No fluff.`;
+Give a SHORT motivational briefing (max 60 words, 2-3 sentences). Specific to his actual data. Direct, energising, South African. No fluff.`;
     try {
       const text = await gemini(prompt, 120);
       setAiMorning({ text, date: todayKey });
@@ -1498,7 +1559,15 @@ Give a SHORT motivational morning/afternoon briefing (max 60 words, 2-3 sentence
     style: { fontSize: 13 }
   }, "\u21BA")))),
   isOffline && /*#__PURE__*/React.createElement("div", { style: { background: "var(--ora)", color: "#fff", fontSize: 12, fontWeight: 700, textAlign: "center", padding: "6px 16px", letterSpacing: "0.04em", marginBottom: 8, borderRadius: 8 } }, "📵 You're offline — changes will sync when reconnected"),
+  !isOffline && syncStatus && /*#__PURE__*/React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "4px 12px", borderRadius: 8, marginBottom: 6, fontSize: 11, fontWeight: 600,
+    background: syncStatus==="syncing"?"var(--sur2)":syncStatus==="synced"?"var(--acc-dim)":"rgba(255,77,109,0.1)",
+    color: syncStatus==="syncing"?"var(--txt3)":syncStatus==="synced"?"var(--acc)":"var(--red)"
+  } },
+    syncStatus==="syncing" && React.createElement("span", { style: { animation: "spin 1s linear infinite", display: "inline-block" } }, "⟳"),
+    syncStatus==="synced" ? "✓ Synced" : syncStatus==="error" ? "⚠️ Sync failed" : "Syncing…"
+  ),
   showPwaBar && pwaPrompt && /*#__PURE__*/React.createElement("div", { style: { background: "linear-gradient(135deg,var(--acc-dim),var(--sur2))", border: "1px solid var(--acc)44", borderRadius: 10, padding: "10px 14px", marginBottom: 10, display: "flex", alignItems: "center", gap: 10 } },
+
     React.createElement("div", { style: { flex: 1 } },
       React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "var(--acc)" } }, "📱 Add to Home Screen"),
       React.createElement("div", { style: { fontSize: 11, color: "var(--txt3)" } }, "Install as an app for offline access")
@@ -1544,7 +1613,7 @@ Give a SHORT motivational morning/afternoon briefing (max 60 words, 2-3 sentence
     style: {
       flex: 1,
       padding: "12px 14px",
-      background: "linear-gradient(135deg,#1a0a00,#0d0d10)",
+      background: "linear-gradient(135deg,var(--bg2),var(--sur))",
       borderColor: "var(--gold)44"
     }
   }, /*#__PURE__*/React.createElement("div", {
@@ -1745,7 +1814,67 @@ Give a SHORT motivational morning/afternoon briefing (max 60 words, 2-3 sentence
       React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "var(--red)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 } }, "⚠️ Top skip reasons"),
       top.map(([r,n]) => React.createElement("div", { key: r, style: { fontSize: 12, color: "var(--txt2)" } }, `${r}: ${n}x`))
     );
-  })()), di === (new Date().getDay() + 6) % 7 && yesterday.length > 0 && /*#__PURE__*/React.createElement("div", {
+  })()), 
+
+  // Sunday review nudge
+  (() => {
+    const isSunday = new Date().getDay() === 0;
+    const reviews = LS("reviews_v1");
+    const isSaved = reviews[wk]?.done;
+    if (!isSunday || isSaved) return null;
+    return React.createElement("div", { style: { background: "linear-gradient(135deg,rgba(99,102,241,0.12),var(--sur))", border: "1px solid rgba(99,102,241,0.3)", borderRadius: 12, padding: "14px 16px", marginBottom: 12, display: "flex", alignItems: "center", gap: 12 } },
+      React.createElement("div", { style: { fontSize: 28 } }, "📓"),
+      React.createElement("div", { style: { flex: 1 } },
+        React.createElement("div", { style: { fontSize: 14, fontWeight: 700, marginBottom: 2 } }, "It's Sunday — review time"),
+        React.createElement("div", { style: { fontSize: 12, color: "var(--txt2)" } }, "15 minutes. Honest reflection. Don't skip it.")
+      ),
+      React.createElement("button", { onClick: () => setTab("review"), className: "btn btn-primary btn-sm", style: { fontSize: 12, flexShrink: 0 } }, "Go →")
+    );
+  })(),
+  showContractPrompt && React.createElement("div", { style: { background: "linear-gradient(135deg,var(--acc-dim),var(--sur))", border: "1px solid var(--acc)44", borderRadius: 12, padding: "14px 16px", marginBottom: 12 } },
+    React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--acc)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 } }, "📋 Weekly Attendance Contract"),
+    React.createElement("div", { style: { fontSize: 15, fontWeight: 700, marginBottom: 6 } }, "This week, I will attend…"),
+    React.createElement("div", { style: { fontSize: 13, color: "var(--txt2)", marginBottom: 12 } }, "Set your target. Own it."),
+    React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
+      [60, 70, 80, 90, 100].map(t =>
+        React.createElement("button", { key: t, onClick: () => saveContract(t),
+          style: { fontFamily: "inherit", fontSize: 13, fontWeight: 700, padding: "8px 16px", borderRadius: 99,
+            border: "1.5px solid var(--acc)", background: "var(--acc-dim)", color: "var(--acc)", cursor: "pointer" }
+        }, `${t}%`)
+      )
+    ),
+    React.createElement("button", { onClick: () => setShowContractPrompt(false),
+      style: { marginTop: 8, background: "transparent", border: "none", fontSize: 12, color: "var(--txt3)", cursor: "pointer", width: "100%" }
+    }, "Skip for this week")
+  ),
+
+  attContract && !showContractPrompt && (() => {
+    const wkKey = (() => { const d=new Date(); d.setDate(d.getDate()-(d.getDay()+6)%7); return d.toISOString().slice(0,10); })();
+    if (attContract.wk !== wkKey) return null;
+    const onTrack = weekSummary.pct >= attContract.target;
+    return React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: onTrack?"var(--acc-dim)":"rgba(255,77,109,0.08)", borderRadius: 10, marginBottom: 10, border: `1px solid ${onTrack?"var(--acc)44":"rgba(255,77,109,0.2)"}` } },
+      React.createElement("span", { style: { fontSize: 18 } }, onTrack ? "✅" : "⚠️"),
+      React.createElement("div", { style: { flex: 1 } },
+        React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: onTrack?"var(--acc)":"var(--red)" } },
+          onTrack ? `Contract: ${attContract.target}% — you're on track!` : `Contract: ${attContract.target}% — currently at ${weekSummary.pct}%`
+        ),
+        React.createElement("div", { style: { fontSize: 11, color: "var(--txt3)" } },
+          onTrack ? "Keep going 💪" : `Need ${attContract.target - weekSummary.pct}% more to hit your target`
+        )
+      )
+    );
+  })(),
+
+  missedStreaks.length > 0 && React.createElement("div", { style: { padding: "10px 12px", background: "rgba(255,77,109,0.08)", borderRadius: 10, marginBottom: 10, border: "1px solid rgba(255,77,109,0.2)" } },
+    React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--red)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 } }, "⚠️ Falling Behind"),
+    missedStreaks.map(({ p, count }) =>
+      React.createElement("div", { key: p, style: { fontSize: 13, color: "var(--txt)", display: "flex", justifyContent: "space-between", marginBottom: 4 } },
+        React.createElement("span", null, p),
+        React.createElement("span", { style: { color: "var(--red)", fontWeight: 700 } }, `${count} day${count !== 1 ? "s" : ""} missed`)
+      )
+    )
+  ),
+  di === (new Date().getDay() + 6) % 7 && yesterday.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "card",
     style: { marginBottom: 12, overflow: "hidden" }
   },
@@ -1787,10 +1916,15 @@ Give a SHORT motivational morning/afternoon briefing (max 60 words, 2-3 sentence
       );
     })
   ), /*#__PURE__*/React.createElement(TodayAnalytics, { checked, slots }),
-  // Journal History button
-  React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 12 } },
-    React.createElement("button", { className: "btn btn-ghost btn-sm", style: { flex: 1, fontSize: 12 }, onClick: () => setShowJournal(true) }, "📖 Journal History"),
-    React.createElement("button", { className: "btn btn-ghost btn-sm", style: { flex: 1, fontSize: 12 }, onClick: () => setFocusMode(true) }, "🎯 Focus Mode")
+  // Quick actions bar
+  React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 12 } },
+    React.createElement("button", { className: "btn btn-ghost btn-sm", style: { flex: 1, fontSize: 11 }, onClick: () => setShowJournal(true) }, "📖 Journal"),
+    React.createElement("button", { className: "btn btn-ghost btn-sm", style: { flex: 1, fontSize: 11 }, onClick: () => setFocusMode(true) }, "🎯 Focus"),
+    React.createElement("button", {
+      className: `btn btn-ghost btn-sm${todayExpanded ? " on" : ""}`,
+      style: { flex: 1, fontSize: 11 },
+      onClick: () => setTodayExpanded(e => !e)
+    }, todayExpanded ? "▲ Less" : "▼ More")
   ),
   // Focus Mode overlay
   focusMode && React.createElement("div", { style: { position: "fixed", inset: 0, background: "var(--bg)", zIndex: 250, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32 } },
@@ -1867,7 +2001,7 @@ Give a SHORT motivational morning/afternoon briefing (max 60 words, 2-3 sentence
       )
     )
   ),
-  // ── SKIP REASON MODAL ────────────────────────────────────────────────────
+
   skipModal && React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 300, display: "flex", alignItems: "flex-end" }, onClick: () => { dismissMissed(skipModal.k); setSkipModal(null); } },
     React.createElement("div", { style: { width: "100%", background: "var(--sur)", borderRadius: "20px 20px 0 0", padding: 24 }, onClick: e => e.stopPropagation() },
       React.createElement("div", { style: { fontSize: 15, fontWeight: 700, marginBottom: 4 } }, "Why did you miss this?"),
@@ -2069,7 +2203,7 @@ Give a SHORT motivational morning/afternoon briefing (max 60 words, 2-3 sentence
   }, "Set your 3 priorities for today.")), /*#__PURE__*/React.createElement("div", {
     className: "hero",
     style: {
-      background: pct === 100 ? "linear-gradient(145deg,#0a3d1e,#030d08)" : pct >= 60 ? "linear-gradient(145deg,#1a1500,#0d0d10)" : "linear-gradient(145deg,#1a0a00,#0d0d10)",
+      background: pct === 100 ? "linear-gradient(145deg,var(--bg2),var(--sur))" : pct >= 60 ? "linear-gradient(145deg,var(--bg2),var(--sur))" : "linear-gradient(145deg,var(--bg2),var(--sur))",
       marginBottom: 12
     }
   }, /*#__PURE__*/React.createElement("div", {
@@ -2188,7 +2322,40 @@ Give a SHORT motivational morning/afternoon briefing (max 60 words, 2-3 sentence
     }
   }, pct < 30 ? "Early. Keep pushing." : pct < 60 ? "Halfway. Don't ease up." : pct < 80 ? "Almost there." : "So close. Finish strong.")),
 
-  // ── AI MORNING BRIEFING ──────────────────────────────────────────────────
+  todayExpanded && React.createElement("div", null,
+  (() => {
+    const todayKey2 = new Date().toISOString().slice(0,10);
+    const in3d = new Date(Date.now()+3*86400000).toISOString().slice(0,10);
+    const urgentDls = Object.values(LS("deadlines_v1")).filter(d=>!d.done&&d.date>=todayKey2&&d.date<=in3d);
+    const urgentExams = Object.values(LS("exam_events_v1")).filter(e=>{
+      const days2=Math.ceil((new Date(e.date+"T00:00:00")-new Date())/86400000);
+      return days2>=0&&days2<=7;
+    });
+    if (!urgentDls.length && !urgentExams.length) return null;
+    return React.createElement("div", {style:{marginBottom:12}},
+      ...urgentDls.map(d=>{
+        const days2=Math.ceil((new Date(d.date+"T00:00:00")-new Date())/86400000);
+        return React.createElement("div",{key:d.id,style:{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:days2===0?"rgba(255,77,109,0.12)":"rgba(255,149,0,0.08)",borderRadius:8,marginBottom:6,border:`1px solid ${days2===0?"rgba(255,77,109,0.3)":"rgba(255,149,0,0.2)"}`}},
+          React.createElement("span",{style:{fontSize:16}},days2===0?"🔴":"⚠️"),
+          React.createElement("div",{style:{flex:1}},
+            React.createElement("div",{style:{fontSize:13,fontWeight:700}},d.title),
+            React.createElement("div",{style:{fontSize:11,color:"var(--txt3)"}},days2===0?"Due TODAY":days2===1?"Due TOMORROW":`Due in ${days2}d · ${d.type}`)
+          )
+        );
+      }),
+      ...urgentExams.map(e=>{
+        const days2=Math.max(0,Math.ceil((new Date(e.date+"T00:00:00")-new Date())/86400000));
+        return React.createElement("div",{key:e.id,style:{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"rgba(10,132,255,0.08)",borderRadius:8,marginBottom:6,border:"1px solid rgba(10,132,255,0.2)"}},
+          React.createElement("span",{style:{fontSize:16}},days2<=1?"🚨":"📅"),
+          React.createElement("div",{style:{flex:1}},
+            React.createElement("div",{style:{fontSize:13,fontWeight:700}},e.title),
+            React.createElement("div",{style:{fontSize:11,color:"var(--txt3)"}},days2===0?"TODAY":days2===1?"TOMORROW":`In ${days2} days`)
+          )
+        );
+      })
+    );
+  })(),
+
   React.createElement("div", { className: "card card-p", style: { marginBottom: 12, background: "linear-gradient(135deg,var(--bg2),var(--sur))", border: "1px solid var(--acc)33" } },
     React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: aiMorning?.date===new Date().toISOString().slice(0,10)?8:0 } },
       React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: "var(--acc)" } }, "☀️ Daily Briefing"),
@@ -2199,7 +2366,24 @@ Give a SHORT motivational morning/afternoon briefing (max 60 words, 2-3 sentence
     aiMorning?.date===new Date().toISOString().slice(0,10) && React.createElement("div", { style: { fontSize: 13, color: "var(--txt2)", lineHeight: 1.65 } }, aiMorning.text)
   ),
 
-  // ── ATTENDANCE TARGET + FORECAST ─────────────────────────────────────────
+  React.createElement("button", {
+    className: "btn btn-primary",
+    style: { width: "100%", marginBottom: 12, fontSize: 13, padding: "12px" },
+    disabled: aiMorningLoading,
+    onClick: async () => {
+      setAiMorningLoading(true);
+      const toMins3 = t => { const [h,m]=t.split(":").map(Number); return h*60+m; };
+      const rem3 = tblocks.filter(b=>!checked[b.k]&&toMins3(b.time)>nowMins);
+      const must3 = (mustDo[todayStr]||[]).filter(t=>!t.done);
+      const urg3 = Object.values(LS("deadlines_v1")).filter(d=>!d.done&&d.date<=new Date(Date.now()+172800000).toISOString().slice(0,10)).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,2);
+      const ex3 = Object.values(LS("exam_events_v1")).filter(e=>{const d=Math.ceil((new Date(e.date+"T00:00:00")-new Date())/86400000);return d>=0&&d<=7;}).slice(0,1);
+      const p3 = `Right now (${new Date().toLocaleTimeString("en-ZA",{hour:"2-digit",minute:"2-digit"})}) Junior needs to know what to do next.\nBlocks left today: ${rem3.slice(0,3).map(b=>b.time+" "+b.label).join(", ")||"none"}\nMust-dos: ${must3.map(t=>t.t).join(", ")||"none"}\nUrgent deadlines: ${urg3.map(d=>d.title+" ("+d.date+")").join(", ")||"none"}\nUpcoming: ${ex3.map(e=>e.title+" in "+Math.ceil((new Date(e.date+"T00:00:00")-new Date())/86400000)+"d").join(", ")||"none"}\n\nGive ONE specific action: what to open, work on, for how long. 2 sentences max. Direct.`;
+      try { const t3=await gemini(p3,80); setAiMorning({text:t3,date:new Date().toISOString().slice(0,10)}); }
+      catch { setAiMorning({text:"Check Gemini key at aistudio.google.com",date:new Date().toISOString().slice(0,10)}); }
+      setAiMorningLoading(false);
+    }
+  }, aiMorningLoading ? "⏳ Thinking…" : "🎯 What should I do right now?"),
+
   React.createElement("div", { className: "card card-p", style: { marginBottom: 12 } },
     React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 } },
       React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", letterSpacing: "0.08em" } }, "🎯 Daily Target"),
@@ -2249,9 +2433,9 @@ Give a SHORT motivational morning/afternoon briefing (max 60 words, 2-3 sentence
         " by end of week if you attend all remaining blocks"
       );
     })()
+  )
   ),
 
-  // ── PER-PROGRAMME FILTER PILLS ────────────────────────────────────────────
   React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" } },
     [["ALL","All","var(--txt2)"],["ECP","ECP","var(--blue)"],["UNISA","UNISA","var(--acc)"],["ALX","ALX","var(--ora)"],["AMAZON","Amazon","var(--gold)"],["AWS","AWS","#ff9900"],["MWR","MWR","var(--red)"]].map(([key,label,color])=>{
       const total = tblocks.filter(b=>key==="ALL"||(BM[b.type]?.p||b.type)===key).length;
@@ -2566,7 +2750,6 @@ Give a SHORT motivational morning/afternoon briefing (max 60 words, 2-3 sentence
   }, t.l))), document.getElementById("nav-bar")));
 }
 
-// ── LP SECTION COMPONENT ─────────────────────────────────────────────────────
 function LPSection(_ref5) {
   let {
     star,
@@ -3506,7 +3689,7 @@ const CHEAT_SHEET = [{
   }]
 }];
 const PIPELINE_STAGES = ["Applied", "OA", "Phone Screen", "Virtual Loop", "Offer", "Rejected"];
-// ── SCHEDULE TAB COMPONENT ───────────────────────────────────────────────────
+
 function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, coll, setColl }) {
   // Safety guard — if slots isn't ready yet, render nothing
   if (!slots || !Array.isArray(slots) || slots.length === 0) {
@@ -3541,14 +3724,20 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
   const [slotHistory, setSlotHistory] = useState([]);
   const activeSlots = customSlots || slots;
 
-  // Conflict detection — find duplicate times across days
+  // Conflict detection — find time slots where the same day has two different programme types
   const conflicts = useMemo(() => {
-    const seen = {};
     const found = [];
-    activeSlots.forEach(s => {
-      if (!seen[s.time]) seen[s.time] = 0;
-      seen[s.time]++;
-      if (seen[s.time] === 2) found.push(s.time);
+    DAYS.forEach(day => {
+      const times = {};
+      activeSlots.forEach(s => {
+        if (!s[day] || LIFE.has(s[day].type)) return;
+        const t = s.time;
+        if (!times[t]) times[t] = [];
+        times[t].push(s[day].type);
+      });
+      Object.entries(times).forEach(([time, types]) => {
+        if (types.length > 1) found.push(`${day} ${time}`);
+      });
     });
     return found;
   }, [activeSlots]);
@@ -3573,7 +3762,6 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
     setSlotHistory([]);
   };
 
-  // ── EDIT CELL ──────────────────────────────────────────────────────────────
   const updateCell = (time, day, type, label) => {
     const newSlots = activeSlots.map(s => {
       if (s.time !== time) return s;
@@ -3583,7 +3771,6 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
     setEditCell(null);
   };
 
-  // ── ADD SLOT ───────────────────────────────────────────────────────────────
   const addTimeSlot = (time, sec) => {
     if (!time || !sec) return;
     const newSlot = { time, sec };
@@ -3597,7 +3784,6 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
     saveCustomSlots(activeSlots.filter(s => s.time !== time));
   };
 
-  // ── COPY DAY ──────────────────────────────────────────────────────────────
   const copyDay = (fromDay, toDay) => {
     const newSlots = activeSlots.map(s => ({
       ...s,
@@ -3607,7 +3793,6 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
     setCopyDayFrom(null);
   };
 
-  // ── DRAG & DROP ────────────────────────────────────────────────────────────
   const onDragStart = (e, time, day) => {
     dragSrc.current = { time, day };
     e.dataTransfer.effectAllowed = "move";
@@ -3636,7 +3821,6 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
     dragSrc.current = null;
   };
 
-  // ── IMPORT FROM TEXT ───────────────────────────────────────────────────────
   const parseImport = (text) => {
     // Format: "09:00 Mon PHY | Tue ISC153 | Wed MAM151"
     // or: "09:00-10:00 Mon PHY Tue ISC"
@@ -3699,7 +3883,6 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
     }
   };
 
-  // ── LONG PRESS ─────────────────────────────────────────────────────────────
   const onLongPressStart = (time, day) => {
     longPressTimer.current = setTimeout(() => {
       if (navigator.vibrate) navigator.vibrate(50);
@@ -3708,7 +3891,6 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
   };
   const onLongPressEnd = () => clearTimeout(longPressTimer.current);
 
-  // ── CURRENT TIME ───────────────────────────────────────────────────────────
   const nowHHMM = useMemo(() => {
     const n = new Date();
     return `${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`;
@@ -3849,7 +4031,6 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
 
   return React.createElement("div", { className: "fu" },
 
-    // ── EDIT CELL MODAL ──────────────────────────────────────────────────────
     editCell && React.createElement("div", {
       style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 999, display: "flex", alignItems: "flex-end" },
       onClick: () => setEditCell(null)
@@ -3877,7 +4058,6 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
       }, "Cancel")
     )),
 
-    // ── ADD SLOT MODAL ───────────────────────────────────────────────────────
     showAddSlot && React.createElement("div", {
       style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 999, display: "flex", alignItems: "flex-end" },
       onClick: () => setShowAddSlot(false)
@@ -3912,7 +4092,6 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
       )
     )),
 
-    // ── IMPORT MODAL ─────────────────────────────────────────────────────────
     showImport && React.createElement("div", {
       style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 999, display: "flex", alignItems: "flex-end" },
       onClick: () => setShowImport(false)
@@ -3947,7 +4126,6 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
       )
     )),
 
-    // ── COLOUR LEGEND MODAL ─────────────────────────────────────────────────
     showLegend && React.createElement("div", {
       style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 999, display: "flex", alignItems: "flex-end" },
       onClick: () => setShowLegend(false)
@@ -3974,7 +4152,6 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
       }, "Close")
     )),
 
-    // ── COPY DAY MODAL ───────────────────────────────────────────────────────
     copyDayFrom !== null && React.createElement("div", {
       style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 999, display: "flex", alignItems: "flex-end" },
       onClick: () => setCopyDayFrom(null)
@@ -3997,7 +4174,6 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
       }, "Cancel")
     )),
 
-    // ── NOTE MODAL ───────────────────────────────────────────────────────────
     noteModal && React.createElement("div", {
       style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 999, display: "flex", alignItems: "flex-end" },
       onClick: () => setNoteModal(null)
@@ -4017,7 +4193,6 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
       )
     )),
 
-    // ── TOP BAR ──────────────────────────────────────────────────────────────
     React.createElement("div", { className: "filter-strip" },
       getFilters().map(f => React.createElement("button", {
         key: f.k, className: `fbtn${filter === f.k ? " on" : ""}`, onClick: () => setFilter(f.k)
@@ -4046,7 +4221,9 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
       React.createElement("div", { className: "seg-ctrl", style: { flex: 1 } },
         React.createElement("button", { className: `seg-btn${view === "table" && !weekView ? " on" : ""}`, onClick: () => { setView("table"); setWeekView(false); } }, "📋 Table"),
         React.createElement("button", { className: `seg-btn${view === "day" ? " on" : ""}`, onClick: () => { setView("day"); setWeekView(false); } }, "📅 Day"),
-        React.createElement("button", { className: `seg-btn${weekView ? " on" : ""}`, onClick: () => { setWeekView(w => !w); setView("table"); } }, "📆 Week")
+        React.createElement("button", { className: `seg-btn${weekView ? " on" : ""}`, onClick: () => { setWeekView(w => !w); setView("table"); } }, "📆 Week"),
+        React.createElement("button", { className: `seg-btn${view === "heatmap" ? " on" : ""}`, onClick: () => { setView("heatmap"); setWeekView(false); } }, "🔥 Heatmap"),
+        React.createElement("button", { className: `seg-btn${view === "register" ? " on" : ""}`, onClick: () => { setView("register"); setWeekView(false); } }, "📊 Register")
       ),
       React.createElement("button", {
         onClick: () => { setEditTapMode(e => !e); setEditMode(false); },
@@ -4074,7 +4251,6 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
       )
     ),
 
-    // ── DAY VIEW ──────────────────────────────────────────────────────────────
     view === "day" && React.createElement("div", null,
       React.createElement("div", { style: { display: "flex", gap: 4, marginBottom: 12, overflowX: "auto" } },
         DAYS.map((d, i) => {
@@ -4153,7 +4329,6 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
       )
     ),
 
-    // ── WEEK VIEW ─────────────────────────────────────────────────────────────
     weekView && React.createElement("div", { style: { overflowX: "auto" } },
       React.createElement("div", { style: { display: "flex", gap: 4, minWidth: "max-content", padding: "0 0 8px" } },
         DAYS.map((d, di2) => {
@@ -4192,7 +4367,6 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
       )
     ),
 
-    // ── TABLE VIEW ────────────────────────────────────────────────────────────
     view === "table" && React.createElement("div", { style: { position: "relative" } },
       React.createElement("div", { className: "tbl-scroll", ref: tblRef, onTouchStart: handleTouchStart, onTouchEnd: handleTouchEnd, style: { maxHeight: "65vh", overflowY: "auto" } },
         React.createElement("table", { className: "stbl" },
@@ -4291,7 +4465,155 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
       showJumpBtn && !editMode && React.createElement("button", {
         onClick: jumpToNow,
         style: { position: "fixed", bottom: 96, right: 20, zIndex: 100, background: "var(--acc)", color: "#000", border: "none", borderRadius: 99, padding: "10px 16px", fontSize: 12, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 4px 16px rgba(0,229,160,0.4)" }
-      }, "▶ Now")
+      }, "▶ Now"),
+
+      // ── HEATMAP VIEW ─────────────────────────────────────────────────────
+      view === "heatmap" && React.createElement("div", null,
+        React.createElement("div", { style: { fontSize: 12, color: "var(--txt2)", marginBottom: 14, padding: "0 4px" } }, "Each cell shows your attendance % for that day. Darker green = better."),
+        (() => {
+          // Build last 8 weeks of data
+          const weeks = [];
+          for (let w = 7; w >= 0; w--) {
+            const monday = new Date(); monday.setDate(monday.getDate() - (monday.getDay()+6)%7 - w*7);
+            const wkStr = monday.toISOString().slice(0,10);
+            const dayData = DAYS.map((d, di) => {
+              const blocks = activeSlots.filter(s => s[d] && !LIFE.has(s[d].type) && s.sec !== "SLEEP");
+              const done2 = blocks.filter(s => checked[`${wkStr}_${s.time}_${d}`]).length;
+              const pct2 = blocks.length ? Math.round(done2/blocks.length*100) : null;
+              return { d, di, pct: pct2, total: blocks.length, done: done2 };
+            });
+            weeks.push({ wkStr, label: monday.toLocaleDateString("en-ZA",{day:"numeric",month:"short"}), dayData });
+          }
+          const cellColor = pct2 => pct2===null ? "var(--sur2)" : pct2>=90 ? "#00e5a0" : pct2>=70 ? "#34d399" : pct2>=50 ? "#fbbf24" : pct2>=30 ? "#f97316" : "#ef4444";
+          return React.createElement("div", null,
+            // Day labels
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "64px repeat(7,1fr)", gap: 4, marginBottom: 4 } },
+              React.createElement("div", null),
+              DAYS.map(d => React.createElement("div", { key: d, style: { fontSize: 10, fontWeight: 700, color: "var(--txt3)", textAlign: "center" } }, d))
+            ),
+            // Weeks
+            weeks.map(({ wkStr, label, dayData }) =>
+              React.createElement("div", { key: wkStr, style: { display: "grid", gridTemplateColumns: "64px repeat(7,1fr)", gap: 4, marginBottom: 4 } },
+                React.createElement("div", { style: { fontSize: 9, color: "var(--txt3)", display: "flex", alignItems: "center" } }, label),
+                dayData.map(({ d, pct: pct2, total }) =>
+                  React.createElement("div", { key: d,
+                    style: { height: 36, borderRadius: 6, background: cellColor(pct2), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: pct2!==null&&pct2>=50?"#fff":"var(--txt3)" }
+                  }, pct2!==null ? `${pct2}%` : total===0 ? "—" : "0%")
+                )
+              )
+            ),
+            // Legend
+            React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 12, alignItems: "center", fontSize: 11, color: "var(--txt3)" } },
+              "Legend: ",
+              [["0%","#ef4444"],["30%","#f97316"],["50%","#fbbf24"],["70%","#34d399"],["90%+","#00e5a0"],["No block","var(--sur2)"]].map(([l,c]) =>
+                React.createElement("div", { key: l, style: { display: "flex", alignItems: "center", gap: 3 } },
+                  React.createElement("div", { style: { width: 12, height: 12, borderRadius: 3, background: c } }),
+                  l
+                )
+              )
+            )
+          );
+        })()
+      ),
+
+      // ── REGISTER VIEW ────────────────────────────────────────────────────
+      view === "register" && React.createElement("div", null, (() => {
+        // Build per-programme stats across last 4 weeks
+        const weeks4 = [];
+        for (let w = 3; w >= 0; w--) {
+          const monday = new Date(); monday.setDate(monday.getDate() - (monday.getDay()+6)%7 - w*7);
+          const wkStr = monday.toISOString().slice(0,10);
+          const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
+          const label = `${monday.toLocaleDateString("en-ZA",{day:"numeric",month:"short"})} – ${sunday.toLocaleDateString("en-ZA",{day:"numeric",month:"short"})}`;
+          const progStats = {};
+          DAYS.forEach(d => {
+            activeSlots.forEach(s => {
+              const cell = s[d]; if (!cell || LIFE.has(cell.type) || s.sec==="SLEEP") return;
+              const prog = BM[cell.type]?.p || cell.type;
+              if (!progStats[prog]) progStats[prog] = { total: 0, done: 0 };
+              progStats[prog].total++;
+              if (checked[`${wkStr}_${s.time}_${d}`]) progStats[prog].done++;
+            });
+          });
+          const overall = Object.values(progStats).reduce((a,v)=>({total:a.total+v.total,done:a.done+v.done}),{total:0,done:0});
+          weeks4.push({ wkStr, label, progStats, overallPct: overall.total ? Math.round(overall.done/overall.total*100) : 0, overallDone: overall.done, overallTotal: overall.total });
+        }
+        const progs = [...new Set(weeks4.flatMap(w => Object.keys(w.progStats)))].filter(p => weeks4.some(w => w.progStats[p]?.total > 0));
+        const progColors = { ECP: "var(--blue)", UNISA: "var(--acc)", ALX: "var(--ora)", AMAZON: "var(--gold)", AWS: "#ff9900", MWR: "var(--red)", SAMSUNG: "#1428a0" };
+        // Calculate trends and suggestions
+        const trend = progs.map(p => {
+          const vals = weeks4.map(w => w.progStats[p]?.total ? Math.round(w.progStats[p].done/w.progStats[p].total*100) : 0);
+          const recent = vals.slice(-2).reduce((a,b)=>a+b,0)/2;
+          const older = vals.slice(0,2).reduce((a,b)=>a+b,0)/2;
+          const change = recent - older;
+          return { p, vals, recent, change };
+        });
+        const avgOverall = weeks4.reduce((a,w)=>a+w.overallPct,0)/weeks4.length;
+        const worstProg = trend.reduce((a,b)=>b.recent<a.recent?b:a, trend[0]);
+        const mostImproved = trend.reduce((a,b)=>b.change>a.change?b:a, trend[0]);
+        return React.createElement("div", null,
+          // Overall summary chips
+          React.createElement("div", { className: "chips", style: { marginBottom: 14 } },
+            [
+              [`${Math.round(avgOverall)}%`, "4-Week Avg", "var(--acc)"],
+              [weeks4[weeks4.length-1].overallPct+"%", "This Week", weeks4[weeks4.length-1].overallPct>=70?"var(--acc)":weeks4[weeks4.length-1].overallPct>=50?"var(--gold)":"var(--red)"],
+              [worstProg?.p||"—", "Weakest", "var(--red)"],
+              [mostImproved?.change>0?mostImproved.p+"↑":"Stable", "Trending", "var(--blue)"]
+            ].map(([v,l,c]) => React.createElement("div", { key: l, className: "chip", style: { flex: 1 } },
+              React.createElement("div", { className: "chip-n", style: { color: c, fontSize: 14 } }, v),
+              React.createElement("div", { className: "chip-l" }, l)
+            ))
+          ),
+          // Per-programme register table
+          React.createElement("div", { className: "card", style: { marginBottom: 14, overflow: "auto" } },
+            React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt2)", textTransform: "uppercase", letterSpacing: "0.06em", padding: "10px 14px", borderBottom: "0.5px solid var(--sep)" } }, "Weekly Register"),
+            // Header row
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "80px repeat(4,1fr) 52px", gap: 0, padding: "6px 14px", borderBottom: "0.5px solid var(--sep)", fontSize: 10, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase" } },
+              React.createElement("div", null, "Programme"),
+              ...weeks4.map(w => React.createElement("div", { key: w.wkStr, style: { textAlign: "center" } }, w.label.split("–")[0].trim())),
+              React.createElement("div", { style: { textAlign: "center" } }, "Avg")
+            ),
+            // Data rows
+            progs.map(p => {
+              const pctVals = weeks4.map(w => w.progStats[p]?.total ? Math.round(w.progStats[p].done/w.progStats[p].total*100) : null);
+              const validVals = pctVals.filter(v=>v!==null);
+              const avg2 = validVals.length ? Math.round(validVals.reduce((a,b)=>a+b,0)/validVals.length) : 0;
+              const color = progColors[p] || "var(--txt2)";
+              return React.createElement("div", { key: p, style: { display: "grid", gridTemplateColumns: "80px repeat(4,1fr) 52px", gap: 0, padding: "10px 14px", borderBottom: "0.5px solid var(--sep)", alignItems: "center" } },
+                React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color } }, p),
+                ...pctVals.map((v, i) => React.createElement("div", { key: i, style: { textAlign: "center" } },
+                  v !== null
+                    ? React.createElement("div", { style: { margin: "0 auto", width: 36, height: 36, borderRadius: 8, background: v>=70?"var(--acc-dim)":v>=50?"rgba(255,204,0,0.1)":"rgba(255,77,109,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: v>=70?"var(--acc)":v>=50?"var(--gold)":"var(--red)", border: `1px solid ${v>=70?"var(--acc)44":v>=50?"rgba(255,204,0,0.3)":"rgba(255,77,109,0.2)"}` } }, `${v}%`)
+                    : React.createElement("div", { style: { margin: "0 auto", width: 36, height: 36, borderRadius: 8, background: "var(--sur2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "var(--txt3)" } }, "—")
+                )),
+                React.createElement("div", { style: { textAlign: "center", fontFamily: "var(--mono)", fontSize: 13, fontWeight: 800, color: avg2>=70?"var(--acc)":avg2>=50?"var(--gold)":"var(--red)" } }, `${avg2}%`)
+              );
+            }),
+            // Overall row
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "80px repeat(4,1fr) 52px", gap: 0, padding: "10px 14px", alignItems: "center", background: "var(--sur2)" } },
+              React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase" } }, "Overall"),
+              ...weeks4.map(w => React.createElement("div", { key: w.wkStr, style: { textAlign: "center", fontFamily: "var(--mono)", fontSize: 13, fontWeight: 800, color: w.overallPct>=70?"var(--acc)":w.overallPct>=50?"var(--gold)":"var(--red)" } }, `${w.overallPct}%`)),
+              React.createElement("div", { style: { textAlign: "center", fontFamily: "var(--mono)", fontSize: 13, fontWeight: 800, color: Math.round(avgOverall)>=70?"var(--acc)":Math.round(avgOverall)>=50?"var(--gold)":"var(--red)" } }, `${Math.round(avgOverall)}%`)
+            )
+          ),
+          // AI-powered improvement suggestions
+          React.createElement("div", { className: "card card-p", style: { marginBottom: 12 } },
+            React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 } }, "💡 How to Improve Next Week"),
+            // Auto-generated suggestions based on data
+            ...[
+              worstProg && worstProg.recent < 70 && { icon: "🎯", text: `${worstProg.p} is your weakest programme at ${Math.round(worstProg.recent)}% avg. Prioritise it first in your day — put it in your must-dos every morning.` },
+              weeks4[weeks4.length-1].overallPct < weeks4[weeks4.length-2]?.overallPct && { icon: "📉", text: `This week dropped vs last week. Check your skip reasons in the Today tab — is there a pattern (same day, same time)?` },
+              avgOverall < 60 && { icon: "⚡", text: `Your 4-week average is ${Math.round(avgOverall)}%. Target 70% next week. That's just ${Math.round((weeks4[weeks4.length-1].overallTotal||0)*0.7)} blocks to tick.` },
+              avgOverall >= 80 && { icon: "🏆", text: `${Math.round(avgOverall)}% over 4 weeks — exceptional. Focus on consistency rather than adding more blocks.` },
+              mostImproved && mostImproved.change > 5 && { icon: "↑", text: `${mostImproved.p} improved by ${Math.round(mostImproved.change)}pp — whatever you changed, keep doing it.` },
+              { icon: "📅", text: "Set your attendance contract every Monday morning. A written commitment increases follow-through by ~40%." }
+            ].filter(Boolean).slice(0,4).map((s, i) => s && React.createElement("div", { key: i, style: { display: "flex", gap: 10, marginBottom: 8 } },
+              React.createElement("span", { style: { fontSize: 16, flexShrink: 0 } }, s.icon),
+              React.createElement("div", { style: { fontSize: 13, color: "var(--txt2)", lineHeight: 1.55 } }, s.text)
+            ))
+          )
+        );
+      })())
     )
   );
 }
@@ -4517,9 +4839,9 @@ function AmazonTab() {
   }, /*#__PURE__*/React.createElement("div", {
     className: "card card-p",
     style: {
-      background: "linear-gradient(145deg,#1a0e00,#0d0d10)",
+      background: "linear-gradient(145deg,var(--bg2),var(--sur))",
       marginBottom: 14,
-      borderColor: "#92400e44"
+      borderColor: "var(--bdr2)"
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -4547,7 +4869,7 @@ function AmazonTab() {
       className: "chip",
       style: {
         flex: 1,
-        background: "rgba(255,255,255,0.05)",
+        background: "var(--sur2)",
         minWidth: 60
       }
     }, /*#__PURE__*/React.createElement("div", {
@@ -4567,7 +4889,7 @@ function AmazonTab() {
       marginBottom: 14,
       paddingBottom: 2
     }
-  }, [["overview", "📊"], ["plan", "🗓 Plan"], ["lc", "💻 LeetCode"], ["lp", "🎯 LPs"], ["mock", "🤖 Mock"], ["tracker", "📅 Tracker"], ["cheat", "📋 Cheatsheet"], ["resources", "🔗 Resources"]].map(_ref10 => {
+  }, [["overview", "📊"], ["plan", "🗓 Plan"], ["lc", "💻 LeetCode"], ["lp", "🎯 LPs"], ["star_review", "⚡ Quick Review"], ["mock", "🤖 Mock"], ["tracker", "📅 Tracker"], ["cheat", "📋 Cheatsheet"], ["resources", "🔗 Resources"]].map(_ref10 => {
     let [k, l] = _ref10;
     return /*#__PURE__*/React.createElement("button", {
       key: k,
@@ -4591,7 +4913,7 @@ function AmazonTab() {
     return /*#__PURE__*/React.createElement("div", {
       className: "card card-p",
       style: {
-        background: "linear-gradient(145deg,#1a0a00,#0d0d10)",
+        background: "linear-gradient(145deg,var(--bg2),var(--sur))",
         borderLeft: `4px solid ${next ? stageColor(next.stage) : "var(--gold)"}`,
         marginBottom: 14
       }
@@ -4682,7 +5004,7 @@ function AmazonTab() {
     }, "days"))), /*#__PURE__*/React.createElement("div", {
       style: {
         marginTop: 14,
-        borderTop: "0.5px solid rgba(255,255,255,0.08)",
+        borderTop: "0.5px solid var(--sep)",
         paddingTop: 12
       }
     }, /*#__PURE__*/React.createElement("div", {
@@ -5199,7 +5521,7 @@ function AmazonTab() {
     return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
       className: "card card-p",
       style: {
-        background: "linear-gradient(145deg,#0d0d1a,#1a0a00)",
+        background: "linear-gradient(145deg,var(--bg2),var(--sur))",
         marginBottom: 14,
         borderColor: "var(--gold)" + "44"
       }
@@ -5623,10 +5945,79 @@ function AmazonTab() {
     setMockLP: setMockLP,
     setMockAnswer: setMockAnswer,
     setSection: setSection
-  }), section === "mock" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }), section === "star_review" && React.createElement("div", null, (() => {
+    const writtenLPs = LP_DATA.map((lp, i) => ({ lp, i, story: star[i] || "" })).filter(x => x.story.trim());
+    const [srIdx, setSrIdx] = React.useState(0);
+    const [srFlipped, setSrFlipped] = React.useState(false);
+    if (!writtenLPs.length) return React.createElement("div", { style: { textAlign: "center", padding: "60px 16px", color: "var(--txt3)" } },
+      React.createElement("div", { style: { fontSize: 48, marginBottom: 12 } }, "📝"),
+      React.createElement("div", { style: { fontSize: 17, fontWeight: 600, marginBottom: 6 } }, "No stories written yet"),
+      React.createElement("div", { style: { fontSize: 14, color: "var(--txt2)" } }, "Write your STAR stories in the LPs tab first.")
+    );
+    const current = writtenLPs[srIdx % writtenLPs.length];
+    const rating = storyRating[current.i] || 0;
+    const ratingColors = ["var(--txt3)", "var(--red)", "var(--ora)", "var(--gold)", "var(--acc)", "var(--acc)"];
+    return React.createElement("div", null,
+      // Header
+      React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 } },
+        React.createElement("div", { style: { fontSize: 13, fontWeight: 700 } }, `Story ${(srIdx % writtenLPs.length) + 1} of ${writtenLPs.length}`),
+        React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center" } },
+          React.createElement("button", { onClick: () => { setSrIdx(i => (i - 1 + writtenLPs.length) % writtenLPs.length); setSrFlipped(false); },
+            style: { background: "var(--sur2)", border: "none", borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontSize: 16, fontFamily: "inherit" } }, "←"),
+          React.createElement("button", { onClick: () => { setSrIdx(i => (i + 1) % writtenLPs.length); setSrFlipped(false); },
+            style: { background: "var(--sur2)", border: "none", borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontSize: 16, fontFamily: "inherit" } }, "→")
+        )
+      ),
+      // Progress dots
+      React.createElement("div", { style: { display: "flex", gap: 4, marginBottom: 14, flexWrap: "wrap" } },
+        writtenLPs.map((_, i) => React.createElement("div", { key: i,
+          onClick: () => { setSrIdx(i); setSrFlipped(false); },
+          style: { width: 8, height: 8, borderRadius: "50%", cursor: "pointer",
+            background: i === srIdx % writtenLPs.length ? "var(--acc)" : "var(--sur2)",
+            border: i === srIdx % writtenLPs.length ? "none" : "1px solid var(--bdr2)" }
+        }))
+      ),
+      // Card
+      React.createElement("div", { onClick: () => setSrFlipped(f => !f),
+        className: "card card-p",
+        style: { minHeight: 280, marginBottom: 14, borderLeft: `4px solid ${ratingColors[rating]}`, cursor: "pointer", position: "relative" }
+      },
+        React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 } },
+          srFlipped ? "📖 Full STAR Story" : "🎯 LP Question"
+        ),
+        !srFlipped && React.createElement("div", null,
+          React.createElement("div", { style: { fontSize: 16, fontWeight: 700, color: "var(--acc)", marginBottom: 8 } }, current.lp.n),
+          React.createElement("div", { style: { fontSize: 14, color: "var(--txt2)", lineHeight: 1.6 } }, current.lp.q),
+          React.createElement("div", { style: { position: "absolute", bottom: 16, right: 16, fontSize: 12, color: "var(--txt3)", fontStyle: "italic" } }, "Tap to reveal →")
+        ),
+        srFlipped && React.createElement("div", null,
+          React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "var(--acc)", marginBottom: 8 } }, current.lp.n),
+          React.createElement("div", { style: { fontSize: 13, color: "var(--txt)", lineHeight: 1.7, whiteSpace: "pre-wrap" } }, current.story)
+        )
+      ),
+      // Rating row
+      React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 } },
+        React.createElement("div", { style: { fontSize: 12, color: "var(--txt3)" } }, "Rate this story:"),
+        React.createElement("div", { style: { display: "flex", gap: 6 } },
+          [1,2,3,4,5].map(r => React.createElement("button", { key: r,
+            onClick: () => { const n={...storyRating,[current.i]:r}; setStoryRating(n); LSS("az_story_rating",n); if(navigator.vibrate) navigator.vibrate(20); },
+            style: { background: "transparent", border: "none", fontSize: 20, cursor: "pointer",
+              opacity: rating >= r ? 1 : 0.25,
+              transform: rating >= r ? "scale(1.1)" : "scale(1)",
+              transition: "all .15s" }
+          }, "⭐"))
+        )
+      ),
+      // Shuffle button
+      React.createElement("button", { onClick: () => { setSrIdx(Math.floor(Math.random()*writtenLPs.length)); setSrFlipped(false); if(navigator.vibrate) navigator.vibrate(30); },
+        className: "btn btn-ghost", style: { width: "100%", fontSize: 13 }
+      }, "🔀 Random Story")
+    );
+  })()),
+  section === "mock" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "card card-p",
     style: {
-      background: "linear-gradient(145deg,#0d0d1a,#0d1a0d)",
+      background: "linear-gradient(145deg,var(--bg2),var(--sur))",
       marginBottom: 14,
       borderColor: "var(--purple)" + "44"
     }
@@ -6271,7 +6662,6 @@ function AmazonTab() {
   }, "\u2715")))))))));
 }
 
-// ── DEADLINES TAB ────────────────────────────────────────────────────────────
 const DEADLINE_TYPES = [{
   k: "PHY",
   l: "PHY Test",
@@ -6825,7 +7215,6 @@ function PipelineTab() {
   const [paperForm, setPaperForm] = useState({ mod: "PHY151", year: "", score: "", note: "" });
   const [showPaperForm, setShowPaperForm] = useState(false);
 
-  // ── KANBAN ──
   const saveOpps = o => {
     setOpps(o); LSS("pipeline_opps", o);
     Object.values(o).forEach(op => syncToSupa("pipeline_opps", { ...op, user_id: DEVICE_ID }));
@@ -6854,7 +7243,6 @@ function PipelineTab() {
     setNextActionLoading(false);
   };
 
-  // ── GRADES ──
   const saveGrade = (subId, score) => {
     const existing = grades[subId] || { scores: [] };
     const n = { ...grades, [subId]: { ...existing, scores: [...existing.scores, { score: parseFloat(score), date: new Date().toISOString().slice(0, 10) }] } };
@@ -6889,7 +7277,6 @@ function PipelineTab() {
   const gradeColor = s => s === null ? "var(--txt3)" : s >= 75 ? "var(--acc)" : s >= 60 ? "var(--gold)" : s >= 50 ? "var(--ora)" : "var(--red)";
   const gradeLabel = s => s === null ? "No grades yet" : s >= 75 ? "Distinction 🏆" : s >= 60 ? "Pass ✅" : s >= 50 ? "Minimum pass ⚠️" : "Failing ❌";
 
-  // ── PAST PAPERS ──
   const papersByMod = useMemo(() => {
     const m = {};
     PAST_PAPER_MODS.forEach(mod => { m[mod.id] = []; });
@@ -6916,7 +7303,6 @@ function PipelineTab() {
   const totalPapers = Object.values(papers).length;
   const avgPaperScore = totalPapers ? Math.round(Object.values(papers).reduce((a, b) => a + b.score, 0) / totalPapers) : null;
 
-  // ── OPP FORM RENDERER (shared for Add + Edit) ──
   const renderOppForm = (form, setForm, onSave, onCancel) => React.createElement("div", { className: "list-card", style: { marginBottom: 14 } },
     [["Title", "title", "text", "e.g. Investec Internship 2026"], ["Organisation", "org", "text", "e.g. Investec"], ["URL / Link", "url", "text", "https://..."], ["Deadline", "deadline", "date", ""]].map(([lbl, key, type, ph]) =>
       React.createElement("div", { key, style: { padding: "12px 16px", borderBottom: "0.5px solid var(--sep)" } },
@@ -6951,7 +7337,7 @@ function PipelineTab() {
   );
 
   return React.createElement("div", { className: "fu" },
-    // ── STATS STRIP ──
+
     React.createElement("div", { className: "chips", style: { marginBottom: 14 } },
       [[oppList.filter(o => o.col === "interview").length, "Interviews", "var(--purple)"], [oppList.filter(o => o.col === "offer").length, "Offers", "var(--acc)"], [totalPapers, "Papers", "var(--blue)"], [avgPaperScore ? `${avgPaperScore}%` : "—", "Avg Paper", "var(--gold)"]].map(([v, l, c]) =>
         React.createElement("div", { key: l, className: "chip", style: { flex: 1 } },
@@ -6960,16 +7346,15 @@ function PipelineTab() {
         )
       )
     ),
-    // ── TABS ──
+
     React.createElement("div", { className: "seg-ctrl", style: { marginBottom: 16 } },
       [["kanban", "🚀 Pipeline"], ["grades", "📊 Grades"], ["papers", "📄 Past Papers"]].map(([k, l]) =>
         React.createElement("button", { key: k, className: `seg-btn${section === k ? " on" : ""}`, onClick: () => setSection(k) }, l)
       )
     ),
 
-    // ══════════════════════════════════════════════════
     // KANBAN SECTION
-    // ══════════════════════════════════════════════════
+
     section === "kanban" && React.createElement("div", null,
       // Interview countdown banner
       (() => {
@@ -6993,7 +7378,7 @@ function PipelineTab() {
           })
         );
       })(),
-      // ── INTERVIEW PREP CHECKLIST ──────────────────────────────────────────
+
       (() => {
         const interviewOpps = oppList.filter(o => o.col === "interview");
         if (!interviewOpps.length) return null;
@@ -7086,7 +7471,7 @@ function PipelineTab() {
                               })
                             )
                           ),
-                          // ── NEXT ACTION (Gemini) ───────────────────────────────────────
+
                           isExpanded && React.createElement("div", { style: { marginTop: 8 } },
                             React.createElement("button", { onClick: () => getNextAction(opp), disabled: nextActionLoading && nextActionOpp===opp.id,
                               style: { fontFamily: "inherit", fontSize: 11, fontWeight: 700, padding: "5px 12px", borderRadius: 8, border: "1px solid var(--acc)44", background: "var(--acc-dim)", color: "var(--acc)", cursor: "pointer", width: "100%", marginBottom: 4 }
@@ -7107,9 +7492,8 @@ function PipelineTab() {
       })
     ),
 
-    // ══════════════════════════════════════════════════
     // GRADES SECTION
-    // ══════════════════════════════════════════════════
+
     section === "grades" && React.createElement("div", null,
       React.createElement("div", { style: { fontSize: 12, color: "var(--txt2)", marginBottom: 14, padding: "0 4px" } }, "Tap a subject to log a grade. Set a target to track progress."),
       React.createElement("div", { className: "list-card" },
@@ -7166,9 +7550,8 @@ function PipelineTab() {
       )
     ),
 
-    // ══════════════════════════════════════════════════
     // PAST PAPERS SECTION
-    // ══════════════════════════════════════════════════
+
     section === "papers" && React.createElement("div", null,
       React.createElement("button", { className: "btn btn-primary", style: { width: "100%", marginBottom: 14 }, onClick: () => setShowPaperForm(s => !s) }, showPaperForm ? "✕ Cancel" : "➕ Log Past Paper"),
       showPaperForm && React.createElement("div", { className: "list-card", style: { marginBottom: 14 } },
@@ -7231,7 +7614,6 @@ function PipelineTab() {
   );
 }
 
-// ── EXAMS TAB ────────────────────────────────────────────────────────────────
 const EXAM_SUBJECTS = [{
   id: "PHY",
   n: "Physics",
@@ -7614,7 +7996,7 @@ function ExamsTab(_ref22) {
       marginBottom: 14,
       paddingBottom: 2
     }
-  }, [["countdown", "⏳"], ["timetable", "🗓"], ["topics", "📌"], ["progress", "📊"], ["compare", "📈"], ["add", "➕"]].map(_ref23 => {
+  }, [["countdown", "⏳"], ["aws", "☁️"], ["timetable", "🗓"], ["topics", "📌"], ["progress", "📊"], ["compare", "📈"], ["add", "➕"]].map(_ref23 => {
     let [k, ic] = _ref23;
     return /*#__PURE__*/React.createElement("button", {
       key: k,
@@ -7627,7 +8009,7 @@ function ExamsTab(_ref22) {
       }
     }, ic, " ", k.charAt(0).toUpperCase() + k.slice(1));
   })), section === "countdown" && /*#__PURE__*/React.createElement("div", null,
-  // ── URGENCY BANNER ──────────────────────────────────────────────────────
+
   (() => {
     const urgent = upcomingEvents.filter(e => {
       const days = Math.ceil((new Date(e.date+"T00:00:00") - new Date().setHours(0,0,0,0)) / 86400000);
@@ -7645,7 +8027,7 @@ function ExamsTab(_ref22) {
       })
     );
   })(),
-  // ── STUDY HOURS TRACKER ──────────────────────────────────────────────────
+
   upcomingEvents.filter(e=>e.type==="exam").length > 0 && React.createElement("div", { className: "card card-p", style: { marginBottom: 12 } },
     React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 } }, "📚 Study Hours This Week"),
     upcomingEvents.filter(e=>e.type==="exam"&&e.subjects.length>0).flatMap(e=>e.subjects).filter((s,i,a)=>a.indexOf(s)===i).map(sub => {
@@ -7690,6 +8072,11 @@ function ExamsTab(_ref22) {
     const u = uc(days);
     const tm = TYPE_META[ev.type] || TYPE_META.exam;
     const focus = STUDY_FOCUS(days);
+    // Find related pipeline opp
+    const relatedOpp = Object.values(LS("pipeline_opps")).find(o =>
+      o.title.toLowerCase().includes(ev.title.toLowerCase().split(" ")[0]) ||
+      ev.title.toLowerCase().includes(o.title.toLowerCase().split(" ")[0])
+    );
     return /*#__PURE__*/React.createElement("div", {
       key: ev.id,
       className: "card card-p",
@@ -7924,7 +8311,72 @@ function ExamsTab(_ref22) {
         style: { background: "transparent", border: "none", color: "var(--txt3)", fontSize: 14, cursor: "pointer" }
       }, "\u2715"))
     );
-  })))), section === "timetable" && /*#__PURE__*/React.createElement("div", null, genTimetable.length === 0 ? /*#__PURE__*/React.createElement("div", {
+  })))), section === "aws" && React.createElement("div", { className: "fu" },
+    // AWS re/Start Countdown
+    (() => {
+      const awsDate = new Date("2026-04-28T00:00:00");
+      const now2 = new Date();
+      const days = Math.max(0, Math.ceil((awsDate - now2) / 86400000));
+      const started = days === 0;
+      return React.createElement("div", { style: { background: days<=7?"linear-gradient(135deg,rgba(255,149,0,0.15),var(--sur))":"linear-gradient(135deg,var(--bg2),var(--sur))", border: `1px solid ${days<=7?"#ff990044":"var(--bdr2)"}`, borderRadius: 14, padding: "18px 16px", marginBottom: 14 } },
+        React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "#ff9900", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 } }, "☁️ AWS re/Start"),
+        React.createElement("div", { style: { fontSize: 42, fontWeight: 800, letterSpacing: "-0.03em", color: days<=7?"#ff9900":"var(--txt)", lineHeight: 1 } }, started ? "LIVE 🚀" : `${days}d`),
+        React.createElement("div", { style: { fontSize: 13, color: "var(--txt2)", marginTop: 4 } }, started ? "Programme is running — full-time mode activated" : `Starts April 28, 2026 · ${days} days to go`)
+      );
+    })(),
+    // Pre-start checklist
+    (() => {
+      const AWS_CHECKLIST = [
+        { id: "laptop", label: "Laptop charged + charger packed", cat: "Gear" },
+        { id: "notebook", label: "Notebook + pen ready", cat: "Gear" },
+        { id: "id", label: "Student ID + any required docs", cat: "Docs" },
+        { id: "schedule", label: "Check programme schedule / timetable", cat: "Docs" },
+        { id: "slack", label: "Join AWS re/Start Slack / WhatsApp group", cat: "Comms" },
+        { id: "github", label: "GitHub profile updated (github.com/Junior-Motsoko)", cat: "Comms" },
+        { id: "linkedin", label: "LinkedIn updated with re/Start enrolment", cat: "Comms" },
+        { id: "aws_account", label: "AWS account created + free tier activated", cat: "Tech" },
+        { id: "aws_cli", label: "AWS CLI installed on laptop", cat: "Tech" },
+        { id: "vscode", label: "VS Code + Python + Node.js installed", cat: "Tech" },
+        { id: "git_config", label: "Git configured (name, email, SSH key)", cat: "Tech" },
+        { id: "ecp_plan", label: "Arrange ECP lecture coverage plan", cat: "Academic" },
+        { id: "unisa_plan", label: "Pre-complete UNISA assignments due in May", cat: "Academic" },
+        { id: "alx_plan", label: "ALX submission schedule reviewed", cat: "Academic" },
+        { id: "sleep", label: "Sleep early the night before", cat: "Wellness" },
+      ];
+      const [awsChecks, setAwsChecks] = React.useState(() => { try { return JSON.parse(localStorage.getItem("aws_checklist")||"{}"); } catch { return {}; } });
+      const tog = id => { const n={...awsChecks,[id]:!awsChecks[id]}; setAwsChecks(n); localStorage.setItem("aws_checklist",JSON.stringify(n)); };
+      const cats = [...new Set(AWS_CHECKLIST.map(i=>i.cat))];
+      const done = AWS_CHECKLIST.filter(i=>awsChecks[i.id]).length;
+      return React.createElement("div", null,
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 } },
+          React.createElement("div", { style: { fontSize: 14, fontWeight: 700 } }, "Pre-Start Checklist"),
+          React.createElement("div", { style: { fontFamily: "var(--mono)", fontSize: 13, color: done===AWS_CHECKLIST.length?"var(--acc)":"var(--txt3)" } }, `${done}/${AWS_CHECKLIST.length}`)
+        ),
+        React.createElement("div", { className: "pbar", style: { marginBottom: 16 } },
+          React.createElement("div", { className: "pbar-fill", style: { width: `${Math.round(done/AWS_CHECKLIST.length*100)}%`, background: done===AWS_CHECKLIST.length?"var(--acc)":"#ff9900" } })
+        ),
+        cats.map(cat => React.createElement("div", { key: cat, style: { marginBottom: 14 } },
+          React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 } }, cat),
+          React.createElement("div", { className: "list-card" },
+            AWS_CHECKLIST.filter(i=>i.cat===cat).map((item, idx, arr) =>
+              React.createElement("div", { key: item.id, onClick: () => tog(item.id),
+                style: { display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderBottom: idx<arr.length-1?"0.5px solid var(--sep)":"none", cursor: "pointer" }
+              },
+                React.createElement("div", { style: { width: 22, height: 22, borderRadius: "50%", border: `2px solid ${awsChecks[item.id]?"var(--acc)":"var(--bdr3)"}`, background: awsChecks[item.id]?"var(--acc)":"transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#fff", fontWeight: 700, flexShrink: 0 } }, awsChecks[item.id]?"✓":""),
+                React.createElement("div", { style: { fontSize: 14, color: awsChecks[item.id]?"var(--txt3)":"var(--txt)", textDecoration: awsChecks[item.id]?"line-through":"none" } }, item.label)
+              )
+            )
+          )
+        )),
+        done === AWS_CHECKLIST.length && React.createElement("div", { style: { padding: "14px 16px", background: "var(--acc-dim)", borderRadius: 12, border: "1px solid var(--acc)44", textAlign: "center" } },
+          React.createElement("div", { style: { fontSize: 24, marginBottom: 6 } }, "🚀"),
+          React.createElement("div", { style: { fontSize: 15, fontWeight: 700, color: "var(--acc)" } }, "You're ready for AWS re/Start!"),
+          React.createElement("div", { style: { fontSize: 13, color: "var(--txt2)", marginTop: 4 } }, "Ship it ntwana 💪")
+        )
+      );
+    })()
+  ),
+  section === "timetable" && /*#__PURE__*/React.createElement("div", null, genTimetable.length === 0 ? /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "40px 16px",
       textAlign: "center"
@@ -9052,7 +9504,6 @@ function ReviewTab(_ref27) {
   let { checked, slots, wk } = _ref27;
   const safeSlots = (slots && Array.isArray(slots)) ? slots : [];
 
-  // ── CORE STATE ───────────────────────────────────────────────────────────
   const [reviews, setReviews] = useState(() => LS("reviews_v1"));
   const [view, setView] = useState("this");
   const [form, setForm] = useState(() => LS("reviews_v1")[wk] || { win:"", skipped:"", energy:0, different:"", rating:0, done:false });
@@ -9062,12 +9513,10 @@ function ReviewTab(_ref27) {
     if (lk && r[lk]?.done) { const rv=r[lk]; syncToSupa("reviews",{id:`${DEVICE_ID}_${lk}`,user_id:DEVICE_ID,week:lk,win:rv.win,skipped:rv.skipped,energy:rv.energy,different:rv.different,rating:rv.rating,blocks_done:rv.blocksDone,blocks_total:rv.blocksTotal}); }
   };
 
-  // ── BLOCKS CALC ──────────────────────────────────────────────────────────
   const blocksTotal = useMemo(() => { let t=0; safeSlots.forEach(s=>{ if(s.sec==="SLEEP")return; DAYS.forEach(d=>{ const sl=s[d]; if(sl&&!LIFE.has(sl.type))t++; }); }); return t; }, [safeSlots]);
   const blocksDone = useMemo(() => Object.keys(checked).filter(k=>k.startsWith(wk)&&checked[k]).length, [checked,wk]);
   const blocksPercent = blocksTotal ? Math.round(blocksDone/blocksTotal*100) : 0;
 
-  // ── PER-PROGRAMME BLOCKS ─────────────────────────────────────────────────
   const progBlocks = useMemo(() => {
     const progs = { ECP:0, UNISA:0, ALX:0, AMAZON:0, AWS:0, MWR:0 };
     const done = { ECP:0, UNISA:0, ALX:0, AMAZON:0, AWS:0, MWR:0 };
@@ -9086,7 +9535,6 @@ function ReviewTab(_ref27) {
     return Object.entries(progs).filter(([,t])=>t>0).map(([p,t])=>({ p, t, d:done[p], pct: Math.round(done[p]/t*100) }));
   }, [safeSlots, checked, wk]);
 
-  // ── SAVE ─────────────────────────────────────────────────────────────────
   const saveForm = () => {
     if (!form.win.trim()) return;
     const r = { ...reviews, [wk]: { ...form, done:true, savedAt:new Date().toISOString(), blocksDone, blocksTotal, blocksPercent } };
@@ -9103,7 +9551,6 @@ function ReviewTab(_ref27) {
   const thisReview = reviews[wk];
   const isSaved = thisReview?.done;
 
-  // ── HELPERS ──────────────────────────────────────────────────────────────
   const weekLabel = w => { const d=new Date(w+"T00:00:00"),end=new Date(d); end.setDate(d.getDate()+6); return `${d.toLocaleDateString("en-ZA",{day:"numeric",month:"short"})} – ${end.toLocaleDateString("en-ZA",{day:"numeric",month:"short"})}`; };
   const ratingColor = r => r>=4?"var(--acc)":r>=3?"var(--gold)":r>=2?"var(--ora)":"var(--red)";
   const energyEmoji = e => ["😴","😐","🙂","😊","🔥"][e-1]||"—";
@@ -9114,7 +9561,6 @@ function ReviewTab(_ref27) {
     ["😴","😐","🙂","😊","🔥"].map((e,i)=>React.createElement("button",{key:i,onClick:()=>onChange(i+1),style:{fontSize:30,background:"transparent",border:"none",cursor:"pointer",opacity:i+1===val?1:0.25,transition:"all .2s",transform:i+1===val?"scale(1.25)":"scale(1)"}},e))
   );
 
-  // ── GOALS ────────────────────────────────────────────────────────────────
   const [goals, setGoals] = useState(()=>{ try{return JSON.parse(localStorage.getItem("weekly_goals")||"{}")}catch{return{}} });
   const [goalInput, setGoalInput] = useState("");
   const weekGoals = goals[wk]||[];
@@ -9122,17 +9568,14 @@ function ReviewTab(_ref27) {
   const addGoal = () => { if(!goalInput.trim()||weekGoals.length>=3) return; saveGoals([...weekGoals,{t:goalInput.trim(),done:false}]); setGoalInput(""); };
   const togGoal = i => { const g=[...weekGoals]; g[i]={...g[i],done:!g[i].done}; saveGoals(g); };
 
-  // ── EDIT ─────────────────────────────────────────────────────────────────
   const [editingWk, setEditingWk] = useState(null);
   const [editForm, setEditForm] = useState({});
   const startEdit = (w,r) => { setEditingWk(w); setEditForm({win:r.win||"",skipped:r.skipped||"",energy:r.energy||0,different:r.different||"",rating:r.rating||0}); };
   const saveEdit = () => { saveReviews({...reviews,[editingWk]:{...reviews[editingWk],...editForm,done:true}}); setEditingWk(null); };
 
-  // ── CARRY-FORWARD (item 1) ───────────────────────────────────────────────
   const lastWkKey = allReviews.find(([w])=>w<wk)?.[0];
   const carryForward = lastWkKey ? reviews[lastWkKey]?.different : null;
 
-  // ── MISSED WEEK DETECT (item 2) ──────────────────────────────────────────
   const missedLastWeek = (() => {
     if (!lastWkKey) return false;
     const expected = new Date(wk+"T00:00:00"); expected.setDate(expected.getDate()-7);
@@ -9140,13 +9583,11 @@ function ReviewTab(_ref27) {
     return expKey !== lastWkKey;
   })();
 
-  // ── GOALS VS ACTUALS (item 3) ─────────────────────────────────────────────
   const goalsVsActuals = weekGoals.map(g => {
     const winMatch = thisReview?.win && thisReview.win.toLowerCase().includes(g.t.toLowerCase().slice(0,10));
     return { ...g, matched: winMatch };
   });
 
-  // ── AI INSIGHT (Gemini) ──────────────────────────────────────────────────
   const [aiInsight, setAiInsight] = useState(()=>{ try{return JSON.parse(localStorage.getItem("review_ai_insight")||"null")}catch{return null} });
   const [aiLoading, setAiLoading] = useState(false);
   const fetchAiInsight = async () => {
@@ -9162,7 +9603,6 @@ function ReviewTab(_ref27) {
     setAiLoading(false);
   };
 
-  // ── MONTHLY SUMMARY (item 4) ─────────────────────────────────────────────
   const monthlySummary = useMemo(() => {
     const months = {};
     allReviews.forEach(([w,r]) => {
@@ -9181,7 +9621,6 @@ function ReviewTab(_ref27) {
     }));
   }, [allReviews, goals]);
 
-  // ── SMART PROMPTS (item 6) ───────────────────────────────────────────────
   const smartPrompt = (() => {
     if (blocksPercent < 50) return "You missed quite a few blocks this week — what got in the way?";
     if (blocksPercent > 90) return "Strong week! What made it click — what can you repeat next week?";
@@ -9192,19 +9631,16 @@ function ReviewTab(_ref27) {
     return "What's one thing that made the biggest difference this week?";
   })();
 
-  // ── MILESTONES (item 6 prev) ─────────────────────────────────────────────
   const MILESTONES = [[4,"🏅","4-week streak"],[8,"🔥","8-week streak"],[12,"💎","12-week streak"],[24,"👑","6-month streak"]];
   const nextMilestone = MILESTONES.find(([n])=>streak<n);
   const latestMilestone = [...MILESTONES].reverse().find(([n])=>streak>=n);
 
-  // ── SHARE (item 7) ───────────────────────────────────────────────────────
   const shareWeek = (w,r) => {
     const txt = [`📓 Week Review — ${weekLabel(w)}`,`📊 Attendance: ${r.blocksPercent||0}% (${r.blocksDone||0}/${r.blocksTotal||0} blocks)`,`⭐ Rating: ${r.rating||0}/5  ⚡ Energy: ${energyEmoji(r.energy)}`,r.win?`\n🏆 Win: ${r.win}`:"",r.different?`🔄 Next: ${r.different}`:"",`\n— Junior Kabelo Motsoko | Master Schedule`].filter(Boolean).join("\n");
     if (navigator.share) { navigator.share({title:"Weekly Review",text:txt}).catch(()=>{}); }
     else { navigator.clipboard?.writeText(txt).then(()=>alert("Copied to clipboard!")); }
   };
 
-  // ── TIMER (item 8) ───────────────────────────────────────────────────────
   const [timerSecs, setTimerSecs] = useState(null);
   const [timerRunning, setTimerRunning] = useState(false);
   useEffect(() => {
@@ -9215,21 +9651,18 @@ function ReviewTab(_ref27) {
   }, [timerRunning, timerSecs]);
   const timerFmt = s => s===null?"15:00":`${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
 
-  // ── MISC ─────────────────────────────────────────────────────────────────
   const bestWk = allReviews.length ? allReviews.reduce((a,b)=>(b[1].blocksPercent||0)>(a[1].blocksPercent||0)?b:a) : null;
   const worstWk = allReviews.length ? allReviews.reduce((a,b)=>(b[1].blocksPercent||0)<(a[1].blocksPercent||0)?b:a) : null;
   const correlationData = allReviews.filter(([,r])=>r.energy&&r.blocksPercent).map(([w,r])=>({w,e:r.energy,a:r.blocksPercent,rating:r.rating}));
   const weekIntention = (() => { try{const h=JSON.parse(localStorage.getItem("daily_intentions_hist")||"{}"); const keys=Object.keys(h).filter(d=>d>=wk).sort(); return keys.length?h[keys[0]]:""; }catch{return "";} })();
 
-  // ── REMINDER ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (typeof Notification==="undefined"||Notification.permission!=="granted") return;
     const now=new Date(); if(now.getDay()===0&&!isSaved) { const t=new Date(); t.setHours(19,0,0,0); const diff=t-now; if(diff>0&&diff<3600000) setTimeout(()=>{try{new Notification("📓 Weekly Review",{body:"Sunday evening — 15-minute check-in time!",tag:"review_reminder"})}catch{}},diff); }
   }, []);
 
-  // ══════════════════════════════════════════════════════════════════════════
   // RENDER
-  // ══════════════════════════════════════════════════════════════════════════
+
   const C = React.createElement;
   const card = (children, style={}) => C("div",{className:"card card-p",style:{marginBottom:10,...style}},children);
   const label = txt => C("div",{style:{fontSize:11,fontWeight:700,color:"var(--txt3)",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}},txt);
@@ -9289,7 +9722,6 @@ function ReviewTab(_ref27) {
       }},"📤")
     ),
 
-    // ════════════════ THIS WEEK ════════════════
     view==="this" && C("div",null,
       // attendance card
       card([
@@ -9385,7 +9817,6 @@ function ReviewTab(_ref27) {
       )
     ),
 
-    // ════════════════ GOALS ════════════════
     view==="goals" && C("div",null,
       C("div",{style:{fontSize:12,color:"var(--txt2)",marginBottom:12,padding:"0 4px"}},"Set up to 3 goals at the start of each week. Check them off on Sunday."),
       weekGoals.length<3 && card([
@@ -9412,7 +9843,6 @@ function ReviewTab(_ref27) {
       )
     ),
 
-    // ════════════════ HISTORY ════════════════
     view==="history" && C("div",null,
       allReviews.length===0
         ? C("div",{style:{padding:"48px 16px",textAlign:"center"}},C("div",{style:{fontSize:48,marginBottom:12}},"📓"),C("div",{style:{fontSize:17,fontWeight:600,marginBottom:6}},"No reviews yet"),C("div",{style:{fontSize:14,color:"var(--txt2)"}},"Complete this week's review first."))
@@ -9471,7 +9901,6 @@ function ReviewTab(_ref27) {
           )
     ),
 
-    // ════════════════ MONTHLY (item 4) ════════════════
     view==="monthly" && C("div",null,
       monthlySummary.length===0
         ? C("div",{style:{textAlign:"center",padding:"40px 16px",color:"var(--txt3)"}},"📅 Need at least 4 reviews for monthly summaries")
@@ -9489,13 +9918,11 @@ function ReviewTab(_ref27) {
           ))
     ),
 
-    // ════════════════ STATS ════════════════
     view==="stats" && C(StatsPanel,{checked,slots:safeSlots})
 
   );
 }
 
-// ── GLOBAL STATS TAB ─────────────────────────────────────────────────────────
 function GlobalStatsTab({ checked, slots, wk }) {
   const safeSlots = slots && Array.isArray(slots) ? slots : [];
   const reviews = LS("reviews_v1");
@@ -9504,7 +9931,6 @@ function GlobalStatsTab({ checked, slots, wk }) {
   const grades = LS("pipeline_grades");
   const skipReasons = (() => { try { return JSON.parse(localStorage.getItem("skip_reasons") || "{}"); } catch { return {}; } })();
 
-  // ── PROGRAMME HEALTH ──────────────────────────────────────────────────────
   const progHealth = useMemo(() => {
     const progs = {};
     safeSlots.forEach(s => {
@@ -9532,28 +9958,23 @@ function GlobalStatsTab({ checked, slots, wk }) {
     }).sort((a, b) => b.pct - a.pct);
   }, [safeSlots, checked]);
 
-  // ── STREAK & REVIEW STATS ─────────────────────────────────────────────────
   const reviewList = Object.values(reviews).filter(r => r.done);
   const avgRating = reviewList.length ? (reviewList.reduce((a, r) => a + (r.rating || 0), 0) / reviewList.length).toFixed(1) : "—";
   const avgEnergy = reviewList.length ? (reviewList.reduce((a, r) => a + (r.energy || 0), 0) / reviewList.length).toFixed(1) : "—";
   const avgAtt = reviewList.length ? Math.round(reviewList.reduce((a, r) => a + (r.blocksPercent || 0), 0) / reviewList.length) : 0;
 
-  // ── DEADLINES STATS ───────────────────────────────────────────────────────
   const dlList = Object.values(deadlines);
   const dlDone = dlList.filter(d => d.done).length;
   const dlOverdue = dlList.filter(d => !d.done && d.date < new Date().toISOString().slice(0, 10)).length;
 
-  // ── PIPELINE STATS ────────────────────────────────────────────────────────
   const oppList = Object.values(opps);
   const interviews = oppList.filter(o => o.col === "interview").length;
   const offers = oppList.filter(o => o.col === "offer").length;
 
-  // ── SKIP PATTERNS ─────────────────────────────────────────────────────────
   const skipFreq = {};
   Object.values(skipReasons).forEach(r => { skipFreq[r] = (skipFreq[r] || 0) + 1; });
   const topSkips = Object.entries(skipFreq).sort((a, b) => b[1] - a[1]).slice(0, 3);
 
-  // ── TOTAL HOURS LOGGED ────────────────────────────────────────────────────
   const totalChecked = Object.keys(checked).filter(k => checked[k]).length;
   const hoursLogged = Math.round(totalChecked * 1); // ~1hr per block
 
@@ -9655,7 +10076,6 @@ function GlobalStatsTab({ checked, slots, wk }) {
   );
 }
 
-// ── NOTIFICATIONS ENGINE ─────────────────────────────────────────────────────
 const REMINDER_DEFS = [{
   id: "wake",
   time: "05:00",
@@ -9695,67 +10115,132 @@ const REMINDER_DEFS = [{
 }];
 function scheduleNotifications(prefs, deadlines) {
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
-  // Clear old scheduled notifs from localStorage
   const now = new Date();
   const todayStr = now.toISOString().slice(0, 10);
   const lastSched = localStorage.getItem("notif_last_sched");
-  if (lastSched === todayStr) return; // already scheduled today
+  if (lastSched === todayStr) return;
   localStorage.setItem("notif_last_sched", todayStr);
 
-  // Schedule daily reminders via setTimeout
+  const fire = (delay, title, body, tag) => {
+    if (delay > 0 && delay < 86400000) {
+      setTimeout(() => {
+        try { new Notification(title, { body, icon: "./icons/icon-192.png", tag, renotify: true }); } catch(e) {}
+      }, delay);
+    }
+  };
+
   REMINDER_DEFS.forEach(r => {
     if (!prefs[r.id]) return;
-    const [hh, mm] = r.time.split(":").map(Number);
-    const target = new Date();
-    target.setHours(hh, mm, 0, 0);
-    const diff = target - now;
-    if (diff > 0 && diff < 86400000) {
-      setTimeout(() => {
-        try {
-          new Notification(`${r.icon} ${r.label}`, {
-            body: r.body,
-            icon: "./icons/icon-192.png",
-            badge: "./icons/icon-192.png",
-            tag: r.id,
-            renotify: true
-          });
-        } catch (e) {}
-      }, diff);
+    const customTime = (() => { try { return JSON.parse(localStorage.getItem("notif_custom_times") || "{}")[r.id]; } catch { return null; } })();
+    const [hh, mm] = (customTime || r.time).split(":").map(Number);
+    const target = new Date(); target.setHours(hh, mm, 0, 0);
+    // For wake notification, build today's schedule into the body
+    let body = r.body;
+    if (r.id === "wake") {
+      try {
+        const slots2 = window._SLOTS || [];
+        const DAYS2 = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+        const dayName = DAYS2[(new Date().getDay()+6)%7];
+        const todayBlocks = slots2
+          .filter(s => s[dayName] && !["SLEEP","BREAK"].includes(s.sec))
+          .map(s => `${s.time} ${s[dayName].label || s[dayName].type}`)
+          .slice(0, 6);
+        if (todayBlocks.length > 0) {
+          body = `Today: ${todayBlocks.join(" · ")}. ${todayBlocks.length} blocks. Let's go ntwana 💪`;
+        }
+      } catch {}
     }
+    fire(target - now, `${r.icon} ${r.label}`, body, r.id);
   });
 
-  // Schedule deadline notifications
+  try {
+    const slots = window._SLOTS || [];
+    const dayIdx = (now.getDay() + 6) % 7;
+    const DAYS2 = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+    const todayKey = DAYS2[dayIdx];
+    const checked = (() => { try { return JSON.parse(localStorage.getItem("sv5") || "{}"); } catch { return {}; } })();
+    const wk = (() => {
+      const d = new Date(); d.setDate(d.getDate() - (d.getDay() + 6) % 7);
+      return d.toISOString().slice(0, 10);
+    })();
+
+    slots.forEach(s => {
+      const sl = s[todayKey];
+      if (!sl || ["SLEEP","BREAK","LIFE","PRAY","GYM","MEAL"].includes(sl.type)) return;
+      if (s.sec === "SLEEP") return;
+      const k = `${wk}_${s.time}_${todayKey}`;
+      if (checked[k]) return; // already ticked
+
+      const [hh2, mm2] = s.time.split(":").map(Number);
+      const blockTime = new Date(); blockTime.setHours(hh2, mm2, 0, 0);
+
+      // 15 min before: "Coming up" nudge
+      const nudgeTime = new Date(blockTime - 15 * 60000);
+      const nudgeDiff = nudgeTime - now;
+      if (nudgeDiff > 0) {
+        fire(nudgeDiff,
+          `⏰ ${sl.label || sl.type} in 15 min`,
+          `${s.time} — ${sl.label || sl.type}. Get ready ntwana! 💪`,
+          `block_nudge_${k}`
+        );
+      }
+
+      // 5 min after start: "Did you make it?" check-in
+      const checkIn = new Date(blockTime.getTime() + 5 * 60000);
+      const checkDiff = checkIn - now;
+      if (checkDiff > 0 && checkDiff < 86400000) {
+        fire(checkDiff,
+          `✅ Tick off ${sl.label || sl.type}?`,
+          `You should be in your ${sl.label || sl.type} block now — open the app to tick it off.`,
+          `block_checkin_${k}`
+        );
+      }
+    });
+
+    const reviews = (() => { try { return JSON.parse(localStorage.getItem("reviews_v1") || "{}"); } catch { return {}; } })();
+    const isSunday = now.getDay() === 0;
+    if (isSunday && !reviews[wk]?.done) {
+      const eveningTarget = new Date(); eveningTarget.setHours(19, 0, 0, 0);
+      fire(eveningTarget - now,
+        "📓 Weekly Review Time",
+        "15 minutes. Honest reflection. Don't break your streak — review now!",
+        "review_reminder"
+      );
+    }
+
+    const todayBlocks = slots.filter(s => s[todayKey] && !["SLEEP","BREAK"].includes(s.sec)).length;
+    const todayDone = slots.filter(s => {
+      const k2 = `${wk}_${s.time}_${todayKey}`;
+      return s[todayKey] && checked[k2];
+    }).length;
+    const pct = todayBlocks ? Math.round(todayDone / todayBlocks * 100) : 0;
+    if (todayBlocks > 0 && pct < 50) {
+      const afternoonTarget = new Date(); afternoonTarget.setHours(16, 0, 0, 0);
+      const diff3 = afternoonTarget - now;
+      if (diff3 > 0 && diff3 < 86400000) {
+        fire(diff3,
+          "📊 Attendance Check",
+          `You're at ${pct}% today (${todayDone}/${todayBlocks} blocks). Still time to catch up! 💪`,
+          "attendance_warning"
+        );
+      }
+    }
+  } catch(e) {}
+
   if (prefs.deadlines_24h || prefs.deadlines_day) {
     deadlines.filter(d => !d.done).forEach(dl => {
       const dlDate = new Date(dl.date + "T08:00:00");
       const daysAway = Math.ceil((dlDate - now) / 86400000);
-      // Day before
+      const t8 = new Date(); t8.setHours(8, 0, 0, 0);
       if (prefs.deadlines_24h && daysAway === 1) {
-        const t = new Date();
-        t.setHours(8, 0, 0, 0);
-        const diff2 = t - now;
-        if (diff2 > 0) setTimeout(() => {
-          try {
-            new Notification("⚠️ Deadline Tomorrow", {
-              body: `"${dl.title}" is due tomorrow!`,
-              tag: `dl_${dl.id}_24h`
-            });
-          } catch (e) {}
-        }, diff2);
+        fire(t8 - now, "⚠️ Deadline Tomorrow", `"${dl.title}" is due tomorrow!`, `dl_${dl.id}_24h`);
       }
-      // Day of
       if (prefs.deadlines_day && daysAway === 0) {
-        const t = new Date();
-        t.setHours(8, 0, 0, 0);
-        const diff2 = t - now;
-        if (diff2 > 0) setTimeout(() => {
-          try {
-            new Notification("🔴 Deadline Today", {
-              body: `"${dl.title}" is due TODAY!`,
-              tag: `dl_${dl.id}_today`
-            });
-          } catch (e) {}
-        }, diff2);
+        fire(t8 - now, "🔴 Deadline Today", `"${dl.title}" is due TODAY!`, `dl_${dl.id}_today`);
+      }
+      // 3-day warning
+      if (daysAway === 3) {
+        fire(t8 - now, "📋 Deadline in 3 days", `"${dl.title}" — don't leave it late.`, `dl_${dl.id}_3d`);
       }
     });
   }
@@ -9930,6 +10415,53 @@ function NotifsTab(_ref36) {
           a.download = `schedule-backup-${new Date().toISOString().slice(0,10)}.json`; a.click();
         }, style: { fontFamily: "inherit", fontSize: 12, fontWeight: 700, padding: "6px 14px", borderRadius: 99, border: "1.5px solid var(--blue)", background: "rgba(77,159,255,0.1)", color: "var(--blue)", cursor: "pointer" } }, "📦 Export")
       )
+    ),
+    // PDF Portfolio Export
+    React.createElement("div", { className: "card card-p", style: { marginBottom: 12 } },
+      React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 } }, "🤖 Gemini AI Key"),
+      GEMINI_KEY === "PASTE_YOUR_GEMINI_KEY_HERE"
+        ? React.createElement("div", null,
+            React.createElement("div", { style: { fontSize: 12, color: "var(--red)", fontWeight: 600, marginBottom: 8 } }, "⚠️ AI features inactive — key not set"),
+            React.createElement("div", { style: { fontSize: 12, color: "var(--txt2)", marginBottom: 10, lineHeight: 1.6 } }, "Get a free key at aistudio.google.com → Create API key → paste it in index.html line 662."),
+            React.createElement("div", { style: { fontFamily: "var(--mono)", fontSize: 11, padding: "8px 10px", background: "var(--sur2)", borderRadius: 8, color: "var(--txt3)", wordBreak: "break-all" } }, "const GEMINI_KEY = \"AIza...\"; // line 662")
+          )
+        : React.createElement("div", { style: { fontSize: 13, color: "var(--acc)", fontWeight: 600 } }, "✅ Gemini AI connected — all AI features active")
+    ),
+    React.createElement("div", { className: "card card-p", style: { marginBottom: 12 } },
+      React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 } }, "📄 Portfolio Export"),
+      React.createElement("div", { style: { fontSize: 12, color: "var(--txt2)", marginBottom: 12 } }, "Generate a printable summary of your STAR stories, grades and pipeline for interviews and CVs."),
+      React.createElement("button", { onClick: () => {
+        const star = (() => { try { return JSON.parse(localStorage.getItem("az_star") || "{}"); } catch { return {}; } })();
+        const grades = (() => { try { return JSON.parse(localStorage.getItem("pipeline_grades") || "{}"); } catch { return {}; } })();
+        const opps = (() => { try { return JSON.parse(localStorage.getItem("pipeline_opps") || "{}"); } catch { return {}; } })();
+        const reviews = (() => { try { return JSON.parse(localStorage.getItem("reviews_v1") || "{}"); } catch { return {}; } })();
+        const LP_NAMES = ["Customer Obsession","Ownership","Invent & Simplify","Are Right, A Lot","Learn & Be Curious","Hire & Develop the Best","Insist on Highest Standards","Think Big","Bias for Action","Frugality","Earn Trust","Dive Deep","Have Backbone","Deliver Results","Strive to Be Earth's Best Employer","Success & Scale"];
+        const avgAtt = Object.values(reviews).filter(r=>r.done).length ? Math.round(Object.values(reviews).filter(r=>r.done).reduce((a,r)=>a+(r.blocksPercent||0),0)/Object.values(reviews).filter(r=>r.done).length) : 0;
+        let html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Junior Kabelo Motsoko — Portfolio</title>
+<style>body{font-family:Arial,sans-serif;max-width:800px;margin:0 auto;padding:40px;color:#111;}h1{color:#1a1a2e;border-bottom:3px solid #0a84ff;padding-bottom:10px;}h2{color:#0a84ff;margin-top:30px;}h3{color:#333;margin:16px 0 6px;}.tag{display:inline-block;padding:2px 10px;border-radius:99px;background:#e8f4ff;color:#0a84ff;font-size:12px;margin:2px;}.story{background:#f8f9fa;border-left:4px solid #0a84ff;padding:12px 16px;margin:10px 0;border-radius:0 8px 8px 0;white-space:pre-wrap;}.stat{display:inline-block;text-align:center;padding:12px 20px;background:#f0f4ff;border-radius:8px;margin:6px;}.stat-n{font-size:28px;font-weight:800;color:#0a84ff;}.stat-l{font-size:11px;color:#666;text-transform:uppercase;}@media print{.no-print{display:none}}</style></head><body>
+<button class="no-print" onclick="window.print()" style="position:fixed;top:20px;right:20px;padding:10px 20px;background:#0a84ff;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;">🖨️ Print / Save PDF</button>
+<h1>Junior Kabelo Motsoko</h1>
+<p style="color:#666">BSc Computer Science · UWC (ECP) · UNISA · github.com/Junior-Motsoko · ilogicCee</p>
+<div style="margin:20px 0">
+<div class="stat"><div class="stat-n">${Object.values(star).filter(Boolean).length}</div><div class="stat-l">STAR Stories</div></div>
+<div class="stat"><div class="stat-n">${Object.values(opps).filter(o=>o.col==="interview").length}</div><div class="stat-l">Interviews</div></div>
+<div class="stat"><div class="stat-n">${avgAtt}%</div><div class="stat-l">Avg Attendance</div></div>
+<div class="stat"><div class="stat-n">${Object.values(reviews).filter(r=>r.done).length}</div><div class="stat-l">Weekly Reviews</div></div>
+</div>
+<h2>STAR Stories — Amazon Leadership Principles</h2>`;
+        LP_NAMES.forEach((lp, i) => { if (star[i]) html += `<h3>${lp}</h3><div class="story">${star[i]}</div>`; });
+        html += `<h2>Pipeline</h2>`;
+        Object.values(opps).forEach(o => { html += `<p><strong>${o.title}</strong> · ${o.org||""} <span class="tag">${o.col}</span>${o.deadline?` · Due ${o.deadline}`:""}</p>`; });
+        html += `<h2>Academic Grades</h2>`;
+        const GRADE_SUBJS = [{id:"PHY151",l:"Physics 1"},{id:"MAM151",l:"Maths 1"},{id:"ISC153",l:"ISC153"},{id:"COS1511",l:"COS1511"},{id:"COS1512",l:"COS1512"}];
+        GRADE_SUBJS.forEach(s => {
+          const sc = grades[s.id]?.scores||[]; if(!sc.length) return;
+          const avg = Math.round(sc.reduce((a,b)=>a+b.score,0)/sc.length*10)/10;
+          html += `<p><strong>${s.l}</strong>: ${avg}% avg (${sc.length} entries)</p>`;
+        });
+        html += `</body></html>`;
+        const w = window.open("","_blank"); w.document.write(html); w.document.close();
+      }, style: { fontFamily: "inherit", fontSize: 13, fontWeight: 700, padding: "8px 18px", borderRadius: 10, border: "1.5px solid var(--acc)", background: "var(--acc-dim)", color: "var(--acc)", cursor: "pointer" } }, "📄 Generate Portfolio PDF")
     ),
     React.createElement("div", { className: "card card-p", style: { marginBottom: 16 } },
       React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 } }, "About"),
@@ -10187,7 +10719,7 @@ function NotifsTab(_ref36) {
   }, "These are ", /*#__PURE__*/React.createElement("strong", {
     style: { color: "var(--txt)" }
   }, "local notifications"), " \u2014 they fire when you open the app each day. For best results, open the app once in the morning and leave it running in a browser tab. No server, no account, no data leaves your device."),
-  // ── TELEGRAM QUICK SEND ──
+
   React.createElement("div", { style: { marginTop: 20 } },
     React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt2)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 4px 8px" } }, "📨 Send to Telegram"),
     React.createElement("div", { className: "card card-p" },
@@ -10201,7 +10733,6 @@ function NotifsTab(_ref36) {
   /*#__PURE__*/React.createElement(ProgrammeManager, null)));
 }
 
-// ── PROGRAMME MANAGER ────────────────────────────────────────────────────────
 function TodayAnalytics({ checked, slots }) {
   const PROGRAMMES = ["ECP","UNISA","ALX","AWS","AMAZON","MWR","AWS_ML"];
   const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
@@ -10459,7 +10990,6 @@ function StatsPanel({ checked, slots }) {
       )
     ),
 
-    // ── PROGRAMME VIEW ──────────────────────────────────────────────────────
     statsView === "programme" && React.createElement("div", { className: "card", style: { overflow: "hidden", marginBottom: 12 } },
       PROGRAMMES.filter(p => progStats[p]?.total > 0).map((p, i, arr) => {
         const s = progStats[p];
@@ -10504,7 +11034,6 @@ function StatsPanel({ checked, slots }) {
       })
     ),
 
-    // ── SUBJECT VIEW ────────────────────────────────────────────────────────
     statsView === "subject" && React.createElement("div", { className: "card", style: { overflow: "hidden", marginBottom: 12 } },
       subjStats.map(([type, s], i) => {
         const pct = s.total ? Math.round(s.done / s.total * 100) : 0;
@@ -10527,7 +11056,6 @@ function StatsPanel({ checked, slots }) {
       })
     ),
 
-    // ── MONTHLY VIEW ────────────────────────────────────────────────────────
     statsView === "monthly" && React.createElement("div", null,
       React.createElement("div", { className: "card card-p", style: { marginBottom: 12 } },
         React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 } }, "Monthly Blocks"),
@@ -10556,7 +11084,6 @@ function StatsPanel({ checked, slots }) {
       )
     ),
 
-    // ── MISSED BLOCKS VIEW ───────────────────────────────────────────────────
     statsView === "missed" && React.createElement("div", null,
       React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 } },
         "❌ Missed This Week (", missedBlocks.length, ")"
