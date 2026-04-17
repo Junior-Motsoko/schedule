@@ -659,7 +659,7 @@ const daysTo = d => Math.max(0, Math.ceil((d - new Date().setHours(0, 0, 0, 0)) 
 
 const SUPA_URL = "https://zvizxwwmgxzehbaukyuo.supabase.co";
 const SUPA_KEY = "sb_publishable_FASRdmlsPXmavuknJlejeA_52l9rzp_";
-const GEMINI_KEY = "PASTE_YOUR_GEMINI_KEY_HERE"; // get free key at aistudio.google.com
+const GEMINI_KEY = "AIzaSyCJviE_9S0iE5agBF_ktIjbm4qh0CiEyO4";
 const gemini = async (prompt, maxTokens=300) => {
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
     method: "POST", headers: { "Content-Type": "application/json" },
@@ -694,6 +694,9 @@ const supa = {
 
 // Device ID — stable identifier per device
 const getDeviceId = () => {
+  // Allow user to set a custom sync code for cross-device sync
+  const custom = localStorage.getItem("sync_code");
+  if (custom) return custom;
   let id = localStorage.getItem("device_id");
   if (!id) { id = "dev_" + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem("device_id", id); }
   return id;
@@ -4467,154 +4470,165 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
         style: { position: "fixed", bottom: 96, right: 20, zIndex: 100, background: "var(--acc)", color: "#000", border: "none", borderRadius: 99, padding: "10px 16px", fontSize: 12, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 4px 16px rgba(0,229,160,0.4)" }
       }, "▶ Now"),
 
-      // ── HEATMAP VIEW ─────────────────────────────────────────────────────
-      view === "heatmap" && React.createElement("div", null,
-        React.createElement("div", { style: { fontSize: 12, color: "var(--txt2)", marginBottom: 14, padding: "0 4px" } }, "Each cell shows your attendance % for that day. Darker green = better."),
-        (() => {
-          // Build last 8 weeks of data
-          const weeks = [];
-          for (let w = 7; w >= 0; w--) {
-            const monday = new Date(); monday.setDate(monday.getDate() - (monday.getDay()+6)%7 - w*7);
-            const wkStr = monday.toISOString().slice(0,10);
-            const dayData = DAYS.map((d, di) => {
-              const blocks = activeSlots.filter(s => s[d] && !LIFE.has(s[d].type) && s.sec !== "SLEEP");
-              const done2 = blocks.filter(s => checked[`${wkStr}_${s.time}_${d}`]).length;
-              const pct2 = blocks.length ? Math.round(done2/blocks.length*100) : null;
-              return { d, di, pct: pct2, total: blocks.length, done: done2 };
-            });
-            weeks.push({ wkStr, label: monday.toLocaleDateString("en-ZA",{day:"numeric",month:"short"}), dayData });
-          }
-          const cellColor = pct2 => pct2===null ? "var(--sur2)" : pct2>=90 ? "#00e5a0" : pct2>=70 ? "#34d399" : pct2>=50 ? "#fbbf24" : pct2>=30 ? "#f97316" : "#ef4444";
-          return React.createElement("div", null,
-            // Day labels
-            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "64px repeat(7,1fr)", gap: 4, marginBottom: 4 } },
-              React.createElement("div", null),
-              DAYS.map(d => React.createElement("div", { key: d, style: { fontSize: 10, fontWeight: 700, color: "var(--txt3)", textAlign: "center" } }, d))
-            ),
-            // Weeks
-            weeks.map(({ wkStr, label, dayData }) =>
-              React.createElement("div", { key: wkStr, style: { display: "grid", gridTemplateColumns: "64px repeat(7,1fr)", gap: 4, marginBottom: 4 } },
-                React.createElement("div", { style: { fontSize: 9, color: "var(--txt3)", display: "flex", alignItems: "center" } }, label),
-                dayData.map(({ d, pct: pct2, total }) =>
-                  React.createElement("div", { key: d,
-                    style: { height: 36, borderRadius: 6, background: cellColor(pct2), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: pct2!==null&&pct2>=50?"#fff":"var(--txt3)" }
-                  }, pct2!==null ? `${pct2}%` : total===0 ? "—" : "0%")
-                )
-              )
-            ),
-            // Legend
-            React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 12, alignItems: "center", fontSize: 11, color: "var(--txt3)" } },
-              "Legend: ",
-              [["0%","#ef4444"],["30%","#f97316"],["50%","#fbbf24"],["70%","#34d399"],["90%+","#00e5a0"],["No block","var(--sur2)"]].map(([l,c]) =>
-                React.createElement("div", { key: l, style: { display: "flex", alignItems: "center", gap: 3 } },
-                  React.createElement("div", { style: { width: 12, height: 12, borderRadius: 3, background: c } }),
-                  l
-                )
-              )
-            )
-          );
-        })()
-      ),
+    ),
 
-      // ── REGISTER VIEW ────────────────────────────────────────────────────
-      view === "register" && React.createElement("div", null, (() => {
-        // Build per-programme stats across last 4 weeks
-        const weeks4 = [];
-        for (let w = 3; w >= 0; w--) {
+    // ── HEATMAP VIEW ─────────────────────────────────────────────────────
+    view === "heatmap" && React.createElement("div", null,
+      React.createElement("div", { style: { fontSize: 12, color: "var(--txt2)", marginBottom: 14, padding: "0 4px" } }, "Each cell shows your attendance % for that day. Darker green = better."),
+      (() => {
+        const weeks = [];
+        for (let w = 7; w >= 0; w--) {
           const monday = new Date(); monday.setDate(monday.getDate() - (monday.getDay()+6)%7 - w*7);
           const wkStr = monday.toISOString().slice(0,10);
-          const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
-          const label = `${monday.toLocaleDateString("en-ZA",{day:"numeric",month:"short"})} – ${sunday.toLocaleDateString("en-ZA",{day:"numeric",month:"short"})}`;
-          const progStats = {};
-          DAYS.forEach(d => {
-            activeSlots.forEach(s => {
-              const cell = s[d]; if (!cell || LIFE.has(cell.type) || s.sec==="SLEEP") return;
-              const prog = BM[cell.type]?.p || cell.type;
-              if (!progStats[prog]) progStats[prog] = { total: 0, done: 0 };
-              progStats[prog].total++;
-              if (checked[`${wkStr}_${s.time}_${d}`]) progStats[prog].done++;
-            });
+          const dayData = DAYS.map((d, di) => {
+            const blocks = activeSlots.filter(s => s[d] && !LIFE.has(s[d].type) && s.sec !== "SLEEP");
+            const done2 = blocks.filter(s => checked[`${wkStr}_${s.time}_${d}`]).length;
+            const pct2 = blocks.length ? Math.round(done2/blocks.length*100) : null;
+            return { d, di, pct: pct2, total: blocks.length, done: done2 };
           });
-          const overall = Object.values(progStats).reduce((a,v)=>({total:a.total+v.total,done:a.done+v.done}),{total:0,done:0});
-          weeks4.push({ wkStr, label, progStats, overallPct: overall.total ? Math.round(overall.done/overall.total*100) : 0, overallDone: overall.done, overallTotal: overall.total });
+          weeks.push({ wkStr, label: monday.toLocaleDateString("en-ZA",{day:"numeric",month:"short"}), dayData });
         }
-        const progs = [...new Set(weeks4.flatMap(w => Object.keys(w.progStats)))].filter(p => weeks4.some(w => w.progStats[p]?.total > 0));
-        const progColors = { ECP: "var(--blue)", UNISA: "var(--acc)", ALX: "var(--ora)", AMAZON: "var(--gold)", AWS: "#ff9900", MWR: "var(--red)", SAMSUNG: "#1428a0" };
-        // Calculate trends and suggestions
-        const trend = progs.map(p => {
-          const vals = weeks4.map(w => w.progStats[p]?.total ? Math.round(w.progStats[p].done/w.progStats[p].total*100) : 0);
-          const recent = vals.slice(-2).reduce((a,b)=>a+b,0)/2;
-          const older = vals.slice(0,2).reduce((a,b)=>a+b,0)/2;
-          const change = recent - older;
-          return { p, vals, recent, change };
-        });
-        const avgOverall = weeks4.reduce((a,w)=>a+w.overallPct,0)/weeks4.length;
-        const worstProg = trend.reduce((a,b)=>b.recent<a.recent?b:a, trend[0]);
-        const mostImproved = trend.reduce((a,b)=>b.change>a.change?b:a, trend[0]);
+        // Check if any data exists
+        const hasData = weeks.some(w => w.dayData.some(d => d.pct !== null && d.done > 0));
+        if (!hasData) return React.createElement("div", { style: { textAlign: "center", padding: "48px 16px", color: "var(--txt3)" } },
+          React.createElement("div", { style: { fontSize: 40, marginBottom: 12 } }, "🔥"),
+          React.createElement("div", { style: { fontSize: 15, fontWeight: 600, marginBottom: 6 } }, "No heatmap data yet"),
+          React.createElement("div", { style: { fontSize: 13 } }, "Tick off blocks in the Today tab — your attendance heatmap builds up here over time.")
+        );
+        const cellColor = pct2 => pct2===null ? "var(--sur2)" : pct2>=90 ? "#00e5a0" : pct2>=70 ? "#34d399" : pct2>=50 ? "#fbbf24" : pct2>=30 ? "#f97316" : "#ef4444";
         return React.createElement("div", null,
-          // Overall summary chips
-          React.createElement("div", { className: "chips", style: { marginBottom: 14 } },
-            [
-              [`${Math.round(avgOverall)}%`, "4-Week Avg", "var(--acc)"],
-              [weeks4[weeks4.length-1].overallPct+"%", "This Week", weeks4[weeks4.length-1].overallPct>=70?"var(--acc)":weeks4[weeks4.length-1].overallPct>=50?"var(--gold)":"var(--red)"],
-              [worstProg?.p||"—", "Weakest", "var(--red)"],
-              [mostImproved?.change>0?mostImproved.p+"↑":"Stable", "Trending", "var(--blue)"]
-            ].map(([v,l,c]) => React.createElement("div", { key: l, className: "chip", style: { flex: 1 } },
-              React.createElement("div", { className: "chip-n", style: { color: c, fontSize: 14 } }, v),
-              React.createElement("div", { className: "chip-l" }, l)
-            ))
+          React.createElement("div", { style: { display: "grid", gridTemplateColumns: "64px repeat(7,1fr)", gap: 4, marginBottom: 4 } },
+            React.createElement("div", null),
+            DAYS.map(d => React.createElement("div", { key: d, style: { fontSize: 10, fontWeight: 700, color: "var(--txt3)", textAlign: "center" } }, d))
           ),
-          // Per-programme register table
-          React.createElement("div", { className: "card", style: { marginBottom: 14, overflow: "auto" } },
-            React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt2)", textTransform: "uppercase", letterSpacing: "0.06em", padding: "10px 14px", borderBottom: "0.5px solid var(--sep)" } }, "Weekly Register"),
-            // Header row
-            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "80px repeat(4,1fr) 52px", gap: 0, padding: "6px 14px", borderBottom: "0.5px solid var(--sep)", fontSize: 10, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase" } },
-              React.createElement("div", null, "Programme"),
-              ...weeks4.map(w => React.createElement("div", { key: w.wkStr, style: { textAlign: "center" } }, w.label.split("–")[0].trim())),
-              React.createElement("div", { style: { textAlign: "center" } }, "Avg")
-            ),
-            // Data rows
-            progs.map(p => {
-              const pctVals = weeks4.map(w => w.progStats[p]?.total ? Math.round(w.progStats[p].done/w.progStats[p].total*100) : null);
-              const validVals = pctVals.filter(v=>v!==null);
-              const avg2 = validVals.length ? Math.round(validVals.reduce((a,b)=>a+b,0)/validVals.length) : 0;
-              const color = progColors[p] || "var(--txt2)";
-              return React.createElement("div", { key: p, style: { display: "grid", gridTemplateColumns: "80px repeat(4,1fr) 52px", gap: 0, padding: "10px 14px", borderBottom: "0.5px solid var(--sep)", alignItems: "center" } },
-                React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color } }, p),
-                ...pctVals.map((v, i) => React.createElement("div", { key: i, style: { textAlign: "center" } },
-                  v !== null
-                    ? React.createElement("div", { style: { margin: "0 auto", width: 36, height: 36, borderRadius: 8, background: v>=70?"var(--acc-dim)":v>=50?"rgba(255,204,0,0.1)":"rgba(255,77,109,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: v>=70?"var(--acc)":v>=50?"var(--gold)":"var(--red)", border: `1px solid ${v>=70?"var(--acc)44":v>=50?"rgba(255,204,0,0.3)":"rgba(255,77,109,0.2)"}` } }, `${v}%`)
-                    : React.createElement("div", { style: { margin: "0 auto", width: 36, height: 36, borderRadius: 8, background: "var(--sur2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "var(--txt3)" } }, "—")
-                )),
-                React.createElement("div", { style: { textAlign: "center", fontFamily: "var(--mono)", fontSize: 13, fontWeight: 800, color: avg2>=70?"var(--acc)":avg2>=50?"var(--gold)":"var(--red)" } }, `${avg2}%`)
-              );
-            }),
-            // Overall row
-            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "80px repeat(4,1fr) 52px", gap: 0, padding: "10px 14px", alignItems: "center", background: "var(--sur2)" } },
-              React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase" } }, "Overall"),
-              ...weeks4.map(w => React.createElement("div", { key: w.wkStr, style: { textAlign: "center", fontFamily: "var(--mono)", fontSize: 13, fontWeight: 800, color: w.overallPct>=70?"var(--acc)":w.overallPct>=50?"var(--gold)":"var(--red)" } }, `${w.overallPct}%`)),
-              React.createElement("div", { style: { textAlign: "center", fontFamily: "var(--mono)", fontSize: 13, fontWeight: 800, color: Math.round(avgOverall)>=70?"var(--acc)":Math.round(avgOverall)>=50?"var(--gold)":"var(--red)" } }, `${Math.round(avgOverall)}%`)
+          weeks.map(({ wkStr, label, dayData }) =>
+            React.createElement("div", { key: wkStr, style: { display: "grid", gridTemplateColumns: "64px repeat(7,1fr)", gap: 4, marginBottom: 4 } },
+              React.createElement("div", { style: { fontSize: 9, color: "var(--txt3)", display: "flex", alignItems: "center" } }, label),
+              dayData.map(({ d, pct: pct2, total }) =>
+                React.createElement("div", { key: d,
+                  style: { height: 36, borderRadius: 6, background: cellColor(pct2), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: pct2!==null&&pct2>=50?"#fff":"var(--txt3)" }
+                }, pct2!==null ? `${pct2}%` : total===0 ? "—" : "0%")
+              )
             )
           ),
-          // AI-powered improvement suggestions
-          React.createElement("div", { className: "card card-p", style: { marginBottom: 12 } },
-            React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 } }, "💡 How to Improve Next Week"),
-            // Auto-generated suggestions based on data
-            ...[
-              worstProg && worstProg.recent < 70 && { icon: "🎯", text: `${worstProg.p} is your weakest programme at ${Math.round(worstProg.recent)}% avg. Prioritise it first in your day — put it in your must-dos every morning.` },
-              weeks4[weeks4.length-1].overallPct < weeks4[weeks4.length-2]?.overallPct && { icon: "📉", text: `This week dropped vs last week. Check your skip reasons in the Today tab — is there a pattern (same day, same time)?` },
-              avgOverall < 60 && { icon: "⚡", text: `Your 4-week average is ${Math.round(avgOverall)}%. Target 70% next week. That's just ${Math.round((weeks4[weeks4.length-1].overallTotal||0)*0.7)} blocks to tick.` },
-              avgOverall >= 80 && { icon: "🏆", text: `${Math.round(avgOverall)}% over 4 weeks — exceptional. Focus on consistency rather than adding more blocks.` },
-              mostImproved && mostImproved.change > 5 && { icon: "↑", text: `${mostImproved.p} improved by ${Math.round(mostImproved.change)}pp — whatever you changed, keep doing it.` },
-              { icon: "📅", text: "Set your attendance contract every Monday morning. A written commitment increases follow-through by ~40%." }
-            ].filter(Boolean).slice(0,4).map((s, i) => s && React.createElement("div", { key: i, style: { display: "flex", gap: 10, marginBottom: 8 } },
-              React.createElement("span", { style: { fontSize: 16, flexShrink: 0 } }, s.icon),
-              React.createElement("div", { style: { fontSize: 13, color: "var(--txt2)", lineHeight: 1.55 } }, s.text)
-            ))
+          React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 12, alignItems: "center", fontSize: 11, color: "var(--txt3)" } },
+            "Legend: ",
+            [["0%","#ef4444"],["30%","#f97316"],["50%","#fbbf24"],["70%","#34d399"],["90%+","#00e5a0"],["No block","var(--sur2)"]].map(([l,c]) =>
+              React.createElement("div", { key: l, style: { display: "flex", alignItems: "center", gap: 3 } },
+                React.createElement("div", { style: { width: 12, height: 12, borderRadius: 3, background: c } }),
+                l
+              )
+            )
           )
         );
-      })())
-    )
+      })()
+    ),
+
+
+    // ── REGISTER VIEW ────────────────────────────────────────────────────
+    view === "register" && React.createElement("div", null, (() => {
+      // Build per-programme stats across last 4 weeks
+      const weeks4 = [];
+      for (let w = 3; w >= 0; w--) {
+        const monday = new Date(); monday.setDate(monday.getDate() - (monday.getDay()+6)%7 - w*7);
+        const wkStr = monday.toISOString().slice(0,10);
+        const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
+        const label = `${monday.toLocaleDateString("en-ZA",{day:"numeric",month:"short"})} – ${sunday.toLocaleDateString("en-ZA",{day:"numeric",month:"short"})}`;
+        const progStats = {};
+        DAYS.forEach(d => {
+          activeSlots.forEach(s => {
+            const cell = s[d]; if (!cell || LIFE.has(cell.type) || s.sec==="SLEEP") return;
+            const prog = BM[cell.type]?.p || cell.type;
+            if (!progStats[prog]) progStats[prog] = { total: 0, done: 0 };
+            progStats[prog].total++;
+            if (checked[`${wkStr}_${s.time}_${d}`]) progStats[prog].done++;
+          });
+        });
+        const overall = Object.values(progStats).reduce((a,v)=>({total:a.total+v.total,done:a.done+v.done}),{total:0,done:0});
+        weeks4.push({ wkStr, label, progStats, overallPct: overall.total ? Math.round(overall.done/overall.total*100) : 0, overallDone: overall.done, overallTotal: overall.total });
+      }
+      const progs = [...new Set(weeks4.flatMap(w => Object.keys(w.progStats)))].filter(p => weeks4.some(w => w.progStats[p]?.total > 0));
+      if (!progs.length) return React.createElement("div", { style: { textAlign: "center", padding: "48px 16px", color: "var(--txt3)" } },
+        React.createElement("div", { style: { fontSize: 40, marginBottom: 12 } }, "📊"),
+        React.createElement("div", { style: { fontSize: 15, fontWeight: 600, marginBottom: 6 } }, "No attendance data yet"),
+        React.createElement("div", { style: { fontSize: 13 } }, "Start ticking off blocks in Today tab — your register will fill up here.")
+      );
+      const progColors = { ECP: "var(--blue)", UNISA: "var(--acc)", ALX: "var(--ora)", AMAZON: "var(--gold)", AWS: "#ff9900", MWR: "var(--red)", SAMSUNG: "#1428a0" };
+      // Calculate trends and suggestions
+      const trend = progs.map(p => {
+        const vals = weeks4.map(w => w.progStats[p]?.total ? Math.round(w.progStats[p].done/w.progStats[p].total*100) : 0);
+        const recent = vals.slice(-2).reduce((a,b)=>a+b,0)/2;
+        const older = vals.slice(0,2).reduce((a,b)=>a+b,0)/2;
+        const change = recent - older;
+        return { p, vals, recent, change };
+      });
+      const avgOverall = weeks4.reduce((a,w)=>a+w.overallPct,0)/weeks4.length;
+      const worstProg = trend.length ? trend.reduce((a,b)=>b.recent<a.recent?b:a) : null;
+      const mostImproved = trend.length ? trend.reduce((a,b)=>b.change>a.change?b:a) : null;
+      return React.createElement("div", null,
+        // Overall summary chips
+        React.createElement("div", { className: "chips", style: { marginBottom: 14 } },
+          [
+            [`${Math.round(avgOverall)}%`, "4-Week Avg", "var(--acc)"],
+            [weeks4[weeks4.length-1].overallPct+"%", "This Week", weeks4[weeks4.length-1].overallPct>=70?"var(--acc)":weeks4[weeks4.length-1].overallPct>=50?"var(--gold)":"var(--red)"],
+            [worstProg?.p||"—", "Weakest", "var(--red)"],
+            [mostImproved?.change>0?(mostImproved.p+"↑"):"Stable", "Trending", "var(--blue)"]
+          ].map(([v,l,c]) => React.createElement("div", { key: l, className: "chip", style: { flex: 1 } },
+            React.createElement("div", { className: "chip-n", style: { color: c, fontSize: 14 } }, v),
+            React.createElement("div", { className: "chip-l" }, l)
+          ))
+        ),
+        // Per-programme register table
+        React.createElement("div", { className: "card", style: { marginBottom: 14, overflow: "auto" } },
+          React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt2)", textTransform: "uppercase", letterSpacing: "0.06em", padding: "10px 14px", borderBottom: "0.5px solid var(--sep)" } }, "Weekly Register"),
+          // Header row
+          React.createElement("div", { style: { display: "grid", gridTemplateColumns: "80px repeat(4,1fr) 52px", gap: 0, padding: "6px 14px", borderBottom: "0.5px solid var(--sep)", fontSize: 10, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase" } },
+            React.createElement("div", null, "Programme"),
+            ...weeks4.map(w => React.createElement("div", { key: w.wkStr, style: { textAlign: "center" } }, w.label.split("–")[0].trim())),
+            React.createElement("div", { style: { textAlign: "center" } }, "Avg")
+          ),
+          // Data rows
+          progs.map(p => {
+            const pctVals = weeks4.map(w => w.progStats[p]?.total ? Math.round(w.progStats[p].done/w.progStats[p].total*100) : null);
+            const validVals = pctVals.filter(v=>v!==null);
+            const avg2 = validVals.length ? Math.round(validVals.reduce((a,b)=>a+b,0)/validVals.length) : 0;
+            const color = progColors[p] || "var(--txt2)";
+            return React.createElement("div", { key: p, style: { display: "grid", gridTemplateColumns: "80px repeat(4,1fr) 52px", gap: 0, padding: "10px 14px", borderBottom: "0.5px solid var(--sep)", alignItems: "center" } },
+              React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color } }, p),
+              ...pctVals.map((v, i) => React.createElement("div", { key: i, style: { textAlign: "center" } },
+                v !== null
+                  ? React.createElement("div", { style: { margin: "0 auto", width: 36, height: 36, borderRadius: 8, background: v>=70?"var(--acc-dim)":v>=50?"rgba(255,204,0,0.1)":"rgba(255,77,109,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: v>=70?"var(--acc)":v>=50?"var(--gold)":"var(--red)", border: `1px solid ${v>=70?"var(--acc)44":v>=50?"rgba(255,204,0,0.3)":"rgba(255,77,109,0.2)"}` } }, `${v}%`)
+                  : React.createElement("div", { style: { margin: "0 auto", width: 36, height: 36, borderRadius: 8, background: "var(--sur2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "var(--txt3)" } }, "—")
+              )),
+              React.createElement("div", { style: { textAlign: "center", fontFamily: "var(--mono)", fontSize: 13, fontWeight: 800, color: avg2>=70?"var(--acc)":avg2>=50?"var(--gold)":"var(--red)" } }, `${avg2}%`)
+            );
+          }),
+          // Overall row
+          React.createElement("div", { style: { display: "grid", gridTemplateColumns: "80px repeat(4,1fr) 52px", gap: 0, padding: "10px 14px", alignItems: "center", background: "var(--sur2)" } },
+            React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase" } }, "Overall"),
+            ...weeks4.map(w => React.createElement("div", { key: w.wkStr, style: { textAlign: "center", fontFamily: "var(--mono)", fontSize: 13, fontWeight: 800, color: w.overallPct>=70?"var(--acc)":w.overallPct>=50?"var(--gold)":"var(--red)" } }, `${w.overallPct}%`)),
+            React.createElement("div", { style: { textAlign: "center", fontFamily: "var(--mono)", fontSize: 13, fontWeight: 800, color: Math.round(avgOverall)>=70?"var(--acc)":Math.round(avgOverall)>=50?"var(--gold)":"var(--red)" } }, `${Math.round(avgOverall)}%`)
+          )
+        ),
+        // AI-powered improvement suggestions
+        React.createElement("div", { className: "card card-p", style: { marginBottom: 12 } },
+          React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 } }, "💡 How to Improve Next Week"),
+          // Auto-generated suggestions based on data
+          ...[
+            worstProg && worstProg.recent < 70 && { icon: "🎯", text: `${worstProg.p} is your weakest programme at ${Math.round(worstProg.recent)}% avg. Prioritise it first in your day — put it in your must-dos every morning.` },
+            weeks4[weeks4.length-1].overallPct < weeks4[weeks4.length-2]?.overallPct && { icon: "📉", text: `This week dropped vs last week. Check your skip reasons in the Today tab — is there a pattern (same day, same time)?` },
+            avgOverall < 60 && { icon: "⚡", text: `Your 4-week average is ${Math.round(avgOverall)}%. Target 70% next week. That's just ${Math.round((weeks4[weeks4.length-1].overallTotal||0)*0.7)} blocks to tick.` },
+            avgOverall >= 80 && { icon: "🏆", text: `${Math.round(avgOverall)}% over 4 weeks — exceptional. Focus on consistency rather than adding more blocks.` },
+            mostImproved && mostImproved.change > 5 && { icon: "↑", text: `${mostImproved.p} improved by ${Math.round(mostImproved.change)}pp — whatever you changed, keep doing it.` },
+            { icon: "📅", text: "Set your attendance contract every Monday morning. A written commitment increases follow-through by ~40%." }
+          ].filter(Boolean).slice(0,4).map((s, i) => s && React.createElement("div", { key: i, style: { display: "flex", gap: 10, marginBottom: 8 } },
+            React.createElement("span", { style: { fontSize: 16, flexShrink: 0 } }, s.icon),
+            React.createElement("div", { style: { fontSize: 13, color: "var(--txt2)", lineHeight: 1.55 } }, s.text)
+          ))
+        )
+      );
+    })())
+
   );
 }
 function AmazonTab() {
@@ -10395,6 +10409,42 @@ function NotifsTab(_ref36) {
     ),
     React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt2)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 4px 8px" } }, "Data"),
     React.createElement("div", { className: "list-card", style: { marginBottom: 16 } },
+      // Sync Code — cross-device sync
+      (() => {
+        const [syncInput, setSyncInput] = React.useState("");
+        const [syncSaved, setSyncSaved] = React.useState(false);
+        const currentCode = localStorage.getItem("sync_code") || DEVICE_ID;
+        const isCustom = !!localStorage.getItem("sync_code");
+        return React.createElement("div", { style: { padding: "14px 16px", borderBottom: "0.5px solid var(--sep)" } },
+          React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 } },
+            React.createElement("div", null,
+              React.createElement("div", { style: { fontSize: 15, fontWeight: 600, marginBottom: 2 } }, "📱 Sync Code"),
+              React.createElement("div", { style: { fontSize: 12, color: "var(--txt2)" } }, "Use the same code on all devices to sync your data")
+            ),
+            isCustom && React.createElement("span", { style: { fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "var(--acc-dim)", color: "var(--acc)" } }, "CUSTOM")
+          ),
+          React.createElement("div", { style: { fontFamily: "var(--mono)", fontSize: 13, padding: "8px 10px", background: "var(--sur2)", borderRadius: 8, marginBottom: 10, wordBreak: "break-all", color: "var(--acc)" } }, currentCode),
+          React.createElement("div", { style: { display: "flex", gap: 6 } },
+            React.createElement("input", { value: syncInput, onChange: e => setSyncInput(e.target.value), placeholder: "Enter your sync code…", style: { flex: 1, background: "var(--sur2)", border: "1px solid var(--bdr2)", borderRadius: 8, padding: "7px 10px", fontSize: 13, color: "var(--txt)", fontFamily: "inherit", outline: "none" } }),
+            React.createElement("button", {
+              onClick: () => {
+                const code = syncInput.trim();
+                if (!code) return;
+                localStorage.setItem("sync_code", code);
+                setSyncInput("");
+                setSyncSaved(true);
+                setTimeout(() => { setSyncSaved(false); window.location.reload(); }, 1200);
+              },
+              style: { fontFamily: "inherit", fontSize: 12, fontWeight: 700, padding: "7px 14px", borderRadius: 8, border: "1.5px solid var(--acc)", background: "var(--acc-dim)", color: "var(--acc)", cursor: "pointer", flexShrink: 0 }
+            }, syncSaved ? "✅ Saved!" : "Set Code")
+          ),
+          React.createElement("div", { style: { fontSize: 11, color: "var(--txt3)", marginTop: 8 } }, "💡 Tip: copy your current code above and paste it on your other device"),
+          isCustom && React.createElement("button", {
+            onClick: () => { localStorage.removeItem("sync_code"); window.location.reload(); },
+            style: { marginTop: 8, fontFamily: "inherit", fontSize: 11, padding: "4px 10px", borderRadius: 8, border: "1px solid var(--bdr2)", background: "transparent", color: "var(--red)", cursor: "pointer" }
+          }, "Reset to device ID")
+        );
+      })(),
       React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: "0.5px solid var(--sep)" } },
         React.createElement("div", { style: { flex: 1 } },
           React.createElement("div", { style: { fontSize: 15, fontWeight: 600 } }, "Device ID"),
