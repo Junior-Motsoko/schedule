@@ -659,7 +659,7 @@ const daysTo = d => Math.max(0, Math.ceil((d - new Date().setHours(0, 0, 0, 0)) 
 
 const SUPA_URL = "https://zvizxwwmgxzehbaukyuo.supabase.co";
 const SUPA_KEY = "sb_publishable_FASRdmlsPXmavuknJlejeA_52l9rzp_";
-const GEMINI_KEY = "AIzaSyCJviE_9S0iE5agBF_ktIjbm4qh0CiEyO4";
+const GEMINI_KEY = window.__GEMINI_KEY__ || localStorage.getItem("gemini_key") || "";
 const gemini = async (prompt, maxTokens=300) => {
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
     method: "POST", headers: { "Content-Type": "application/json" },
@@ -10465,6 +10465,39 @@ function NotifsTab(_ref36) {
           a.download = `schedule-backup-${new Date().toISOString().slice(0,10)}.json`; a.click();
         }, style: { fontFamily: "inherit", fontSize: 12, fontWeight: 700, padding: "6px 14px", borderRadius: 99, border: "1.5px solid var(--blue)", background: "rgba(77,159,255,0.1)", color: "var(--blue)", cursor: "pointer" } }, "📦 Export")
       )
+    ),
+    // Gemini Key Setting
+    React.createElement("div", { className: "card card-p", style: { marginBottom: 12 } },
+      React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 } }, "🤖 Gemini API Key"),
+      React.createElement("div", { style: { fontSize: 12, color: "var(--txt2)", marginBottom: 10 } }, "Stored locally on your device only — never uploaded anywhere. Get a free key at aistudio.google.com"),
+      (() => {
+        const [keyInput, setKeyInput] = React.useState("");
+        const [keySaved, setKeySaved] = React.useState(false);
+        const existing = localStorage.getItem("gemini_key");
+        return React.createElement("div", null,
+          existing && React.createElement("div", { style: { fontFamily: "var(--mono)", fontSize: 11, padding: "6px 10px", background: "var(--sur2)", borderRadius: 8, marginBottom: 8, color: "var(--acc)" } },
+            "✅ Key set: ", existing.slice(0,8), "••••••••••••••••••••••••••••••••"
+          ),
+          React.createElement("div", { style: { display: "flex", gap: 6 } },
+            React.createElement("input", { type: "password", value: keyInput, onChange: e => setKeyInput(e.target.value), placeholder: "Paste new AIza... key", style: { flex: 1, background: "var(--sur2)", border: "1px solid var(--bdr2)", borderRadius: 8, padding: "7px 10px", fontSize: 13, color: "var(--txt)", fontFamily: "inherit", outline: "none" } }),
+            React.createElement("button", {
+              onClick: () => {
+                const k = keyInput.trim();
+                if (!k.startsWith("AIza")) return;
+                localStorage.setItem("gemini_key", k);
+                setKeyInput("");
+                setKeySaved(true);
+                setTimeout(() => { setKeySaved(false); window.location.reload(); }, 1000);
+              },
+              style: { fontFamily: "inherit", fontSize: 12, fontWeight: 700, padding: "7px 14px", borderRadius: 8, border: "1.5px solid var(--acc)", background: "var(--acc-dim)", color: "var(--acc)", cursor: "pointer", flexShrink: 0 }
+            }, keySaved ? "✅" : "Save"),
+          ),
+          existing && React.createElement("button", {
+            onClick: () => { localStorage.removeItem("gemini_key"); window.location.reload(); },
+            style: { marginTop: 8, fontFamily: "inherit", fontSize: 11, padding: "4px 10px", borderRadius: 8, border: "1px solid var(--bdr2)", background: "transparent", color: "var(--red)", cursor: "pointer" }
+          }, "Remove key")
+        );
+      })()
     ),
     // PDF Portfolio Export
     React.createElement("div", { className: "card card-p", style: { marginBottom: 12 } },
