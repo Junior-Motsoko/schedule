@@ -694,11 +694,14 @@ const supa = {
 
 // Device ID — stable identifier per device
 const getDeviceId = () => {
-  // Allow user to set a custom sync code for cross-device sync
   const custom = localStorage.getItem("sync_code");
   if (custom) return custom;
   let id = localStorage.getItem("device_id");
-  if (!id) { id = "dev_" + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem("device_id", id); }
+  if (!id) {
+    // Short 6-char code easy to type on phone
+    id = Math.random().toString(36).slice(2,8).toUpperCase();
+    localStorage.setItem("device_id", id);
+  }
   return id;
 };
 const DEVICE_ID = getDeviceId();
@@ -10415,36 +10418,35 @@ function NotifsTab(_ref36) {
     React.createElement("div", { className: "list-card", style: { marginBottom: 16 } },
       // Sync Code — cross-device sync
       (() => {
-        const currentCode = localStorage.getItem("sync_code") || DEVICE_ID;
-        const isCustom = !!localStorage.getItem("sync_code");
+        const currentCode = DEVICE_ID;
         return React.createElement("div", { style: { padding: "14px 16px", borderBottom: "0.5px solid var(--sep)" } },
-          React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 } },
-            React.createElement("div", null,
-              React.createElement("div", { style: { fontSize: 15, fontWeight: 600, marginBottom: 2 } }, "📱 Sync Code"),
-              React.createElement("div", { style: { fontSize: 12, color: "var(--txt2)" } }, "Use the same code on all devices to sync your data")
-            ),
-            isCustom && React.createElement("span", { style: { fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "var(--acc-dim)", color: "var(--acc)" } }, "CUSTOM")
+          React.createElement("div", { style: { fontSize: 15, fontWeight: 600, marginBottom: 4 } }, "📱 Sync Code"),
+          React.createElement("div", { style: { fontSize: 12, color: "var(--txt2)", marginBottom: 12 } }, "Type this on your other device to sync."),
+          React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 12 } },
+            React.createElement("div", { style: { fontFamily: "var(--mono)", fontSize: 28, fontWeight: 800, letterSpacing: "0.15em", color: "var(--acc)", flex: 1, textAlign: "center", padding: "12px", background: "var(--sur2)", borderRadius: 10 } }, currentCode),
+            React.createElement("button", { onClick: () => navigator.clipboard?.writeText(currentCode),
+              style: { fontFamily: "inherit", fontSize: 12, fontWeight: 700, padding: "8px 14px", borderRadius: 8, border: "1.5px solid var(--acc)", background: "var(--acc-dim)", color: "var(--acc)", cursor: "pointer", flexShrink: 0 }
+            }, "Copy")
           ),
-          React.createElement("div", { style: { fontFamily: "var(--mono)", fontSize: 13, padding: "8px 10px", background: "var(--sur2)", borderRadius: 8, marginBottom: 10, wordBreak: "break-all", color: "var(--acc)" } }, currentCode),
+          React.createElement("div", { style: { fontSize: 12, color: "var(--txt3)", marginBottom: 6 } }, "On your other device, enter your code here:"),
           React.createElement("div", { style: { display: "flex", gap: 6 } },
-            React.createElement("input", { value: syncInput, onChange: e => setSyncInput(e.target.value), placeholder: "Enter your sync code…", style: { flex: 1, background: "var(--sur2)", border: "1px solid var(--bdr2)", borderRadius: 8, padding: "7px 10px", fontSize: 13, color: "var(--txt)", fontFamily: "inherit", outline: "none" } }),
+            React.createElement("input", { value: syncInput, onChange: e => setSyncInput(e.target.value.toUpperCase().slice(0,6)), placeholder: "ABC123", maxLength: 6,
+              style: { flex: 1, background: "var(--sur2)", border: "1px solid var(--bdr2)", borderRadius: 8, padding: "10px 12px", fontSize: 22, fontWeight: 800, letterSpacing: "0.15em", color: "var(--txt)", fontFamily: "var(--mono)", outline: "none", textAlign: "center" } }),
             React.createElement("button", {
               onClick: () => {
-                const code = syncInput.trim();
-                if (!code) return;
+                const code = syncInput.trim().toUpperCase();
+                if (code.length < 4) return;
                 localStorage.setItem("sync_code", code);
-                setSyncInput("");
-                setSyncSaved(true);
-                setTimeout(() => { setSyncSaved(false); window.location.reload(); }, 1200);
+                setSyncInput(""); setSyncSaved(true);
+                setTimeout(() => { setSyncSaved(false); window.location.reload(); }, 1000);
               },
-              style: { fontFamily: "inherit", fontSize: 12, fontWeight: 700, padding: "7px 14px", borderRadius: 8, border: "1.5px solid var(--acc)", background: "var(--acc-dim)", color: "var(--acc)", cursor: "pointer", flexShrink: 0 }
-            }, syncSaved ? "✅ Saved!" : "Set Code")
+              style: { fontFamily: "inherit", fontSize: 13, fontWeight: 700, padding: "10px 16px", borderRadius: 8, border: "1.5px solid var(--acc)", background: "var(--acc-dim)", color: "var(--acc)", cursor: "pointer", flexShrink: 0 }
+            }, syncSaved ? "✅" : "Sync")
           ),
-          React.createElement("div", { style: { fontSize: 11, color: "var(--txt3)", marginTop: 8 } }, "💡 Tip: copy your current code above and paste it on your other device"),
-          isCustom && React.createElement("button", {
+          localStorage.getItem("sync_code") && React.createElement("button", {
             onClick: () => { localStorage.removeItem("sync_code"); window.location.reload(); },
-            style: { marginTop: 8, fontFamily: "inherit", fontSize: 11, padding: "4px 10px", borderRadius: 8, border: "1px solid var(--bdr2)", background: "transparent", color: "var(--red)", cursor: "pointer" }
-          }, "Reset to device ID")
+            style: { marginTop: 10, fontFamily: "inherit", fontSize: 11, padding: "4px 10px", borderRadius: 8, border: "1px solid var(--bdr2)", background: "transparent", color: "var(--red)", cursor: "pointer", display: "block" }
+          }, "Reset sync code")
         );
       })(),
       React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: "0.5px solid var(--sep)" } },
