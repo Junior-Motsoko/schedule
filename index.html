@@ -4633,6 +4633,8 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
 }
 function AmazonTab() {
   const [section, setSection] = useState("overview");
+  const [srIdx, setSrIdx] = useState(0);
+  const [srFlipped, setSrFlipped] = useState(false);
   const [lc, setLc] = useState(() => LS("az_lc"));
   const [lcConf, setLcConf] = useState(() => LS("az_lc_conf"));
   const [lp, setLp] = useState(() => LS("az_lp"));
@@ -5961,8 +5963,6 @@ function AmazonTab() {
     setSection: setSection
   }), section === "star_review" && React.createElement("div", null, (() => {
     const writtenLPs = LP_DATA.map((lp, i) => ({ lp, i, story: star[i] || "" })).filter(x => x.story.trim());
-    const [srIdx, setSrIdx] = React.useState(0);
-    const [srFlipped, setSrFlipped] = React.useState(false);
     if (!writtenLPs.length) return React.createElement("div", { style: { textAlign: "center", padding: "60px 16px", color: "var(--txt3)" } },
       React.createElement("div", { style: { fontSize: 48, marginBottom: 12 } }, "📝"),
       React.createElement("div", { style: { fontSize: 17, fontWeight: 600, marginBottom: 6 } }, "No stories written yet"),
@@ -10265,6 +10265,10 @@ function NotifsTab(_ref36) {
   } = _ref36;
   const [notifSection, setNotifSection] = useState("alerts");
   const [perm, setPerm] = useState(() => typeof Notification !== "undefined" ? Notification.permission : "unsupported");
+  const [syncInput, setSyncInput] = useState("");
+  const [syncSaved, setSyncSaved] = useState(false);
+  const [keyInput, setKeyInput] = useState("");
+  const [keySaved, setKeySaved] = useState(false);
   const [prefs, setPrefs] = useState(() => LS("notif_prefs_v1") || {
     wake: true, midday: true, alx: true, late: true, sleep: true,
     deadline: true, deadlines_24h: true, deadlines_day: true
@@ -10411,8 +10415,6 @@ function NotifsTab(_ref36) {
     React.createElement("div", { className: "list-card", style: { marginBottom: 16 } },
       // Sync Code — cross-device sync
       (() => {
-        const [syncInput, setSyncInput] = React.useState("");
-        const [syncSaved, setSyncSaved] = React.useState(false);
         const currentCode = localStorage.getItem("sync_code") || DEVICE_ID;
         const isCustom = !!localStorage.getItem("sync_code");
         return React.createElement("div", { style: { padding: "14px 16px", borderBottom: "0.5px solid var(--sep)" } },
@@ -10471,8 +10473,6 @@ function NotifsTab(_ref36) {
       React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 } }, "🤖 Gemini API Key"),
       React.createElement("div", { style: { fontSize: 12, color: "var(--txt2)", marginBottom: 10 } }, "Stored locally on your device only — never uploaded anywhere. Get a free key at aistudio.google.com"),
       (() => {
-        const [keyInput, setKeyInput] = React.useState("");
-        const [keySaved, setKeySaved] = React.useState(false);
         const existing = localStorage.getItem("gemini_key");
         return React.createElement("div", null,
           existing && React.createElement("div", { style: { fontFamily: "var(--mono)", fontSize: 11, padding: "6px 10px", background: "var(--sur2)", borderRadius: 8, marginBottom: 8, color: "var(--acc)" } },
