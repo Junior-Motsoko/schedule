@@ -718,6 +718,41 @@ const syncToSupa = async (table, data) => {
     _syncListeners.forEach(fn => fn("error"));
   }
 };
+
+// Full backup — syncs ALL localStorage data to Supabase as a single record
+const syncFullBackup = async () => {
+  try {
+    const ALL_KEYS = ["sv5","deadlines_v1","must_do_v1","block_notes_v1","reviews_v1",
+      "az_star","az_star_v2","az_lc","az_lp","az_lp_reh","az_story_rating",
+      "pipeline_opps","pipeline_grades","pipeline_papers","pipeline_targets",
+      "exam_events_v1","exam_sessions_v1","exam_progress_v1","exam_topics_v1",
+      "module_marks","study_sessions","att_target","att_contract","skip_reasons",
+      "week_goals_v1","intention_v1","journal_v1","custom_slots"];
+    const backup = {};
+    ALL_KEYS.forEach(k => {
+      try { backup[k] = localStorage.getItem(k) || ""; } catch {}
+    });
+    await supa.upsert("full_backup", {
+      id: DEVICE_ID, user_id: DEVICE_ID,
+      data: JSON.stringify(backup),
+      updated_at: new Date().toISOString()
+    });
+    return true;
+  } catch { return false; }
+};
+
+// Restore from full backup
+const restoreFullBackup = async () => {
+  try {
+    const rows = await supa.get("full_backup", `user_id=eq.${DEVICE_ID}`);
+    if (!rows?.length) return false;
+    const backup = JSON.parse(rows[0].data || "{}");
+    Object.entries(backup).forEach(([k, v]) => {
+      if (v) localStorage.setItem(k, v);
+    });
+    return true;
+  } catch { return false; }
+};
 const deleteFromSupa = async (table, id) => { try { await supa.delete(table, `id=eq.${id}`); } catch {} };
 
 const GCAL_CLIENT_ID = "988296305612-oerq6ak626saln3qrih2osh3erbft24r.apps.googleusercontent.com";
@@ -2008,6 +2043,44 @@ Give a SHORT motivational briefing (max 60 words, 2-3 sentences). Specific to hi
     )
   ),
 
+  // ── NEXT WEEK PREVIEW ────────────────────────────────────────────────────
+  (() => {
+    const isSunday2 = new Date().getDay() === 0;
+    const isSaturday = new Date().getDay() === 6;
+    if (!isSunday2 && !isSaturday) return null;
+    const nextMon = new Date(); nextMon.setDate(nextMon.getDate() + (8 - nextMon.getDay()) % 7 || 7);
+    const nextWk = nextMon.toISOString().slice(0,10);
+    const nextDeadlines = Object.values(LS("deadlines_v1")).filter(d => {
+      if (d.done) return false;
+      const nDate = new Date(nextMon); nDate.setDate(nextMon.getDate()+6);
+      return d.date >= nextWk && d.date <= nDate.toISOString().slice(0,10);
+    }).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,3);
+    const nextExams = Object.values(LS("exam_events_v1")).filter(e => {
+      const nDate = new Date(nextMon); nDate.setDate(nextMon.getDate()+6);
+      return e.date >= nextWk && e.date <= nDate.toISOString().slice(0,10);
+    });
+    const blocksNext = (slots||[]).reduce((a,s) => {
+      DAYS.forEach(d => { if(s[d]&&!LIFE.has(s[d].type)&&s.sec!=="SLEEP") a++; });
+      return a;
+    }, 0);
+    if (!nextDeadlines.length && !nextExams.length && !blocksNext) return null;
+    return React.createElement("div", { style: { background: "linear-gradient(135deg,rgba(99,102,241,0.08),var(--sur))", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 12, padding: "12px 14px", marginBottom: 12 } },
+      React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--purple)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 } }, "👀 Next Week Preview"),
+      blocksNext > 0 && React.createElement("div", { style: { fontSize: 13, color: "var(--txt2)", marginBottom: 6 } },
+        React.createElement("span", { style: { fontWeight: 700, color: "var(--txt)" } }, `${blocksNext} blocks`), " scheduled next week"
+      ),
+      nextDeadlines.map(d => React.createElement("div", { key: d.id, style: { fontSize: 12, color: "var(--txt2)", marginBottom: 3, display: "flex", gap: 6 } },
+        React.createElement("span", { style: { color: "var(--red)" } }, "📋"),
+        React.createElement("span", null, d.title, " · "),
+        React.createElement("span", { style: { fontFamily: "var(--mono)", color: "var(--txt3)" } }, d.date)
+      )),
+      nextExams.map(e => React.createElement("div", { key: e.id, style: { fontSize: 12, color: "var(--txt2)", marginBottom: 3, display: "flex", gap: 6 } },
+        React.createElement("span", { style: { color: "var(--blue)" } }, "📅"),
+        React.createElement("span", null, e.title, " · "),
+        React.createElement("span", { style: { fontFamily: "var(--mono)", color: "var(--txt3)" } }, e.date)
+      ))
+    );
+  })(),
   skipModal && React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 300, display: "flex", alignItems: "flex-end" }, onClick: () => { dismissMissed(skipModal.k); setSkipModal(null); } },
     React.createElement("div", { style: { width: "100%", background: "var(--sur)", borderRadius: "20px 20px 0 0", padding: 24 }, onClick: e => e.stopPropagation() },
       React.createElement("div", { style: { fontSize: 15, fontWeight: 700, marginBottom: 4 } }, "Why did you miss this?"),
@@ -2335,7 +2408,7 @@ Give a SHORT motivational briefing (max 60 words, 2-3 sentences). Specific to hi
     const urgentDls = Object.values(LS("deadlines_v1")).filter(d=>!d.done&&d.date>=todayKey2&&d.date<=in3d);
     const urgentExams = Object.values(LS("exam_events_v1")).filter(e=>{
       const days2=Math.ceil((new Date(e.date+"T00:00:00")-new Date())/86400000);
-      return days2>=0&&days2<=7;
+      return days2>=0&&days2<=30;
     });
     if (!urgentDls.length && !urgentExams.length) return null;
     return React.createElement("div", {style:{marginBottom:12}},
@@ -4638,6 +4711,7 @@ function AmazonTab() {
   const [section, setSection] = useState("overview");
   const [srIdx, setSrIdx] = useState(0);
   const [srFlipped, setSrFlipped] = useState(false);
+  const [storyRating, setStoryRating] = useState(() => LS("az_story_rating"));
   const [lc, setLc] = useState(() => LS("az_lc"));
   const [lcConf, setLcConf] = useState(() => LS("az_lc_conf"));
   const [lp, setLp] = useState(() => LS("az_lp"));
@@ -5964,7 +6038,8 @@ function AmazonTab() {
     setMockLP: setMockLP,
     setMockAnswer: setMockAnswer,
     setSection: setSection
-  }), section === "star_review" && React.createElement("div", null, (() => {
+  })),
+  section === "star_review" && React.createElement("div", null, (() => {
     const writtenLPs = LP_DATA.map((lp, i) => ({ lp, i, story: star[i] || "" })).filter(x => x.story.trim());
     if (!writtenLPs.length) return React.createElement("div", { style: { textAlign: "center", padding: "60px 16px", color: "var(--txt3)" } },
       React.createElement("div", { style: { fontSize: 48, marginBottom: 12 } }, "📝"),
@@ -6452,7 +6527,7 @@ function AmazonTab() {
     /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, color: "var(--txt2)", marginBottom: item.ex ? 4 : 0 } }, item.when),
     item.ex && /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, color: "var(--blue)" } }, "e.g. ", item.ex),
 
-  )))), section === "resources" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("button", {
+  )))))), section === "resources" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("button", {
     className: "btn btn-primary",
     style: { width: "100%", marginBottom: 14 },
     onClick: () => setShowResForm(s => !s)
@@ -6676,7 +6751,7 @@ function AmazonTab() {
       cursor: "pointer",
       flexShrink: 0
     }
-  }, "\u2715")))))))));
+  }, "\u2715"))))));
 }
 
 const DEADLINE_TYPES = [{
@@ -6795,6 +6870,7 @@ function DeadlinesTab() {
   };
 
   const toggleDone = id => {
+    if (id.startsWith("exam_")) return; // exam events are read-only here
     const dl = deadlines[id];
     const nowDone = !dl.done;
     let n = { ...deadlines, [id]: { ...dl, done: nowDone } };
@@ -6868,7 +6944,17 @@ function DeadlinesTab() {
   const urgLabel = d => d<0?`${Math.abs(d)}d overdue`:d===0?"Today!":d===1?"Tomorrow":`${d} days`;
 
   const allItems = Object.values(deadlines);
-  const filtered = allItems
+  // Merge exam events as read-only deadline items
+  const examItems = Object.values(LS("exam_events_v1"))
+    .filter(e => !e.done)
+    .map(e => ({
+      id: `exam_${e.id}`, title: e.title, date: e.date,
+      type: e.type === "exam" ? "EXAM" : "MILESTONE",
+      note: e.note || "", priority: "🔴", done: false,
+      isExamEvent: true, subjects: e.subjects || []
+    }));
+  const allItemsWithExams = [...allItems, ...examItems];
+  const filtered = allItemsWithExams
     .filter(d => !d.archived || showArchive)
     .filter(d => !search || d.title.toLowerCase().includes(search.toLowerCase()) || d.type.toLowerCase().includes(search.toLowerCase()))
     .sort((a,b) => {
@@ -6879,7 +6965,7 @@ function DeadlinesTab() {
 
   const upcoming = filtered.filter(d => !d.done && daysUntilD(d.date)>=0);
   const overdue = filtered.filter(d => !d.done && daysUntilD(d.date)<0);
-  const done2 = filtered.filter(d => d.done && !d.archived);
+  const done2 = filtered.filter(d => d.done && !d.archived && !d.isExamEvent);
   const archived = allItems.filter(d => d.archived);
 
   const renderDeadline = (dl) => {
@@ -6890,8 +6976,9 @@ function DeadlinesTab() {
     const subDone = subtasks.filter(s=>s.done).length;
     const isSelected = selectedIds.has(dl.id);
     const prog = progress[dl.id] || 0;
+    const isExam = !!dl.isExamEvent;
 
-    return React.createElement("div", { key: dl.id, style: { borderBottom: "0.5px solid var(--sep)" } },
+    return React.createElement("div", { key: dl.id, style: { borderBottom: "0.5px solid var(--sep)", background: isExam ? "rgba(10,132,255,0.03)" : "transparent" } },
       React.createElement("div", {
         style: { display:"flex", alignItems:"center", gap:10, padding:"12px 14px", cursor:"pointer" },
         onClick: () => {
@@ -6904,6 +6991,7 @@ function DeadlinesTab() {
         React.createElement("div", { style:{flex:1,minWidth:0} },
           React.createElement("div", { style:{fontSize:14,fontWeight:600,color:dl.done?"var(--txt3)":"var(--txt)",textDecoration:dl.done?"line-through":"none",display:"flex",alignItems:"center",gap:6} },
             dl.title,
+            isExam && React.createElement("span", { style: { fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 99, background: "rgba(10,132,255,0.12)", color: "var(--blue)" } }, "📅 EXAM"),
             dl.repeat && dl.repeat!=="none" && React.createElement("span", {style:{fontSize:9,color:"var(--blue)"}}, "🔄"),
             subtasks.length>0 && React.createElement("span", {style:{fontSize:10,color:"var(--txt3)",fontWeight:400}}, subDone+"/"+subtasks.length)
           ),
@@ -7735,6 +7823,37 @@ function ExamsTab(_ref22) {
   const [sessions, setSessions] = useState(() => LS("exam_sessions_v1"));
   const [section, setSection] = useState("countdown");
   const [expanded, setExpanded] = useState(null);
+  const [awsChecks, setAwsChecks] = useState(() => { try { return JSON.parse(localStorage.getItem("aws_checklist")||"{}"); } catch { return {}; } });
+  // Marks calculator state
+  const [moduleMarks, setModuleMarks] = useState(() => { try { return JSON.parse(localStorage.getItem("module_marks")||"{}"); } catch { return {}; } });
+  const [marksExpanded, setMarksExpanded] = useState(null);
+  // Study timer state
+  const [timerMod, setTimerMod] = useState("PHY151");
+  const [timerSecs2, setTimerSecs2] = useState(25 * 60);
+  const [timerRunning2, setTimerRunning2] = useState(false);
+  const [timerType, setTimerType] = useState("focus");
+  const [studySessions, setStudySessions] = useState(() => { try { return JSON.parse(localStorage.getItem("study_sessions")||"{}"); } catch { return {}; } });
+  const timerRef2 = useRef(null);
+  useEffect(() => {
+    if (timerRunning2) {
+      timerRef2.current = setInterval(() => {
+        setTimerSecs2(s => {
+          if (s <= 1) {
+            clearInterval(timerRef2.current); setTimerRunning2(false);
+            if (timerType === "focus") {
+              const key = `${timerMod}_${new Date().toISOString().slice(0,10)}`;
+              setStudySessions(prev => { const n={...prev,[key]:(prev[key]||0)+25*60}; localStorage.setItem("study_sessions",JSON.stringify(n)); return n; });
+              if (navigator.vibrate) navigator.vibrate([200,100,200]);
+              try { new Notification("✅ Focus done!", { body: `25 min of ${timerMod} logged.` }); } catch {}
+            }
+            return timerType === "focus" ? 5*60 : 25*60;
+          }
+          return s - 1;
+        });
+      }, 1000);
+    } else { clearInterval(timerRef2.current); }
+    return () => clearInterval(timerRef2.current);
+  }, [timerRunning2, timerMod, timerType]);
   const [expandedTopic, setExpandedTopic] = useState(null);
   const [form, setForm] = useState({
     title: "",
@@ -7763,6 +7882,7 @@ function ExamsTab(_ref22) {
     if (!form.title.trim() || !form.date) return;
     const id = "e_" + Date.now();
     saveEvents({ ...events, [id]: { ...form, id } });
+    addToGCal(form.title, form.date, form.note || form.type);
     setForm({ title: "", date: "", type: "exam", subjects: [], note: "" });
   };
   const delEvent = id => {
@@ -8013,7 +8133,7 @@ function ExamsTab(_ref22) {
       marginBottom: 14,
       paddingBottom: 2
     }
-  }, [["countdown", "⏳"], ["aws", "☁️"], ["timetable", "🗓"], ["topics", "📌"], ["progress", "📊"], ["compare", "📈"], ["add", "➕"]].map(_ref23 => {
+  }, [["countdown", "⏳"], ["aws", "☁️"], ["marks", "🎓 Marks"], ["timer", "⏱ Timer"], ["timetable", "🗓"], ["topics", "📌"], ["progress", "📊"], ["compare", "📈"], ["add", "➕"]].map(_ref23 => {
     let [k, ic] = _ref23;
     return /*#__PURE__*/React.createElement("button", {
       key: k,
@@ -8328,7 +8448,171 @@ function ExamsTab(_ref22) {
         style: { background: "transparent", border: "none", color: "var(--txt3)", fontSize: 14, cursor: "pointer" }
       }, "\u2715"))
     );
-  })))), section === "aws" && React.createElement("div", { className: "fu" },
+  })))),
+
+  section === "marks" && React.createElement("div", { className: "fu" },
+    React.createElement("div", { style: { fontSize: 13, color: "var(--txt2)", marginBottom: 14 } }, "Track your marks per module. Enter each component to see your weighted average."),
+    (() => {
+      const MODULES = [
+        { id: "PHY151", label: "PHY151 – Physics", components: [
+          { name: "Tests (×2)", weight: 20 }, { name: "Practicals", weight: 20 }, { name: "Final Exam", weight: 60 }
+        ]},
+        { id: "MAM151", label: "MAM151 – Maths", components: [
+          { name: "Class Tests", weight: 30 }, { name: "Final Exam", weight: 70 }
+        ]},
+        { id: "ISC153", label: "ISC153 – Info Sys", components: [
+          { name: "Essays / Assignments", weight: 40 }, { name: "Final Exam", weight: 60 }
+        ]},
+        { id: "COS1511", label: "COS1511 – Intro Programming", components: [
+          { name: "Assignments (×4)", weight: 25 }, { name: "Final Exam", weight: 75 }
+        ]},
+        { id: "COS1512", label: "COS1512 – Intro OOP", components: [
+          { name: "Assignments (×4)", weight: 25 }, { name: "Final Exam", weight: 75 }
+        ]},
+      ];
+      const saveMark = (modId, compName, val) => {
+        const n = { ...moduleMarks, [`${modId}_${compName}`]: val };
+        setModuleMarks(n); localStorage.setItem("module_marks", JSON.stringify(n));
+      };
+      const calcAvg = (mod) => {
+        let total = 0, weightSum = 0;
+        mod.components.forEach(c => {
+          const val = parseFloat(moduleMarks[`${mod.id}_${c.name}`]);
+          if (!isNaN(val)) { total += val * c.weight; weightSum += c.weight; }
+        });
+        return weightSum ? Math.round(total / weightSum * 10) / 10 : null;
+      };
+      const gradeLabel2 = avg => avg === null ? "—" : avg >= 75 ? "Distinction 🏆" : avg >= 60 ? "Pass ✅" : avg >= 50 ? "Minimum ⚠️" : "At Risk ❌";
+      const gradeColor2 = avg => avg === null ? "var(--txt3)" : avg >= 75 ? "var(--acc)" : avg >= 60 ? "var(--blue)" : avg >= 50 ? "var(--gold)" : "var(--red)";
+      return React.createElement("div", null,
+        MODULES.map(mod => {
+          const avg = calcAvg(mod);
+          const isOpen = marksExpanded === mod.id;
+          return React.createElement("div", { key: mod.id, className: "card", style: { marginBottom: 10, overflow: "hidden" } },
+            React.createElement("div", { onClick: () => setMarksExpanded(isOpen ? null : mod.id),
+              style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", cursor: "pointer" } },
+              React.createElement("div", null,
+                React.createElement("div", { style: { fontSize: 14, fontWeight: 700 } }, mod.label),
+                React.createElement("div", { style: { fontSize: 12, color: "var(--txt3)", marginTop: 2 } }, gradeLabel2(avg))
+              ),
+              React.createElement("div", { style: { fontFamily: "var(--mono)", fontSize: 26, fontWeight: 800, color: gradeColor2(avg) } }, avg !== null ? `${avg}%` : "—")
+            ),
+            avg !== null && React.createElement("div", { style: { height: 3, background: "var(--sur2)", margin: "0 16px 10px" } },
+              React.createElement("div", { style: { height: "100%", width: `${Math.min(100,avg)}%`, background: gradeColor2(avg), borderRadius: 99 } })
+            ),
+            isOpen && React.createElement("div", { style: { borderTop: "0.5px solid var(--sep)" } },
+              mod.components.map((c, ci) => {
+                const val = moduleMarks[`${mod.id}_${c.name}`] || "";
+                return React.createElement("div", { key: ci, style: { display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderBottom: ci < mod.components.length-1 ? "0.5px solid var(--sep)" : "none" } },
+                  React.createElement("div", { style: { flex: 1 } },
+                    React.createElement("div", { style: { fontSize: 13, fontWeight: 600 } }, c.name),
+                    React.createElement("div", { style: { fontSize: 11, color: "var(--txt3)" } }, `Weight: ${c.weight}%`)
+                  ),
+                  React.createElement("input", { type: "number", min: 0, max: 100, value: val, placeholder: "—",
+                    onChange: e => saveMark(mod.id, c.name, e.target.value),
+                    style: { width: 64, background: "var(--sur2)", border: "1px solid var(--bdr2)", borderRadius: 8, padding: "6px 8px", fontSize: 15, fontWeight: 700, color: "var(--txt)", textAlign: "center", outline: "none", fontFamily: "var(--mono)" }
+                  })
+                );
+              }),
+              (() => {
+                const examComp = mod.components.find(c => c.name.toLowerCase().includes("exam") || c.name.toLowerCase().includes("final"));
+                if (!examComp) return null;
+                let ew = 0, ewt = 0;
+                mod.components.filter(c => c !== examComp).forEach(c => {
+                  const v = parseFloat(moduleMarks[`${mod.id}_${c.name}`]);
+                  if (!isNaN(v)) { ew += v * c.weight; ewt += c.weight; }
+                });
+                if (ewt === 0) return null;
+                const n50 = ((50*100)-ew)/examComp.weight;
+                const n60 = ((60*100)-ew)/examComp.weight;
+                const n75 = ((75*100)-ew)/examComp.weight;
+                return React.createElement("div", { style: { padding: "10px 16px", background: "var(--sur2)" } },
+                  React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 } }, "📊 What do I need in the exam?"),
+                  [["Pass (50%)",n50,"var(--gold)"],["Merit (60%)",n60,"var(--blue)"],["Distinction (75%)",n75,"var(--acc)"]].map(([lbl,val,c]) =>
+                    React.createElement("div", { key: lbl, style: { display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 } },
+                      React.createElement("span", { style: { color: "var(--txt2)" } }, lbl),
+                      React.createElement("span", { style: { fontFamily: "var(--mono)", fontWeight: 700, color: val<=0?"var(--acc)":val>100?"var(--red)":c } },
+                        val<=0?"Already secured ✅":val>100?"Not possible ❌":`${Math.round(val)}%`
+                      )
+                    )
+                  )
+                );
+              })()
+            )
+          );
+        })
+      );
+    })()
+  ),
+
+  section === "timer" && React.createElement("div", { className: "fu" },
+    (() => {
+      const STUDY_MODS2 = ["PHY151","MAM151","ISC153","COS1511","COS1512","ALX","AWS","AMAZON","MWR"];
+      const fmt = s => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+      const todayKey3 = new Date().toISOString().slice(0,10);
+      const todayTotal = STUDY_MODS2.reduce((a,m) => a + (studySessions[`${m}_${todayKey3}`]||0), 0);
+      const modColor2 = m => ({ PHY151:"var(--blue)",MAM151:"var(--acc)",ISC153:"var(--ora)",COS1511:"var(--purple)",COS1512:"var(--purple)",ALX:"var(--ora)",AWS:"#ff9900",AMAZON:"var(--gold)",MWR:"var(--red)" })[m] || "var(--txt2)";
+      const pct3 = Math.min(100, Math.round((1 - timerSecs2 / (timerType==="focus"?25*60:5*60)) * 100));
+      return React.createElement("div", null,
+        React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 } },
+          STUDY_MODS2.map(m => React.createElement("button", { key: m, onClick: () => { if(!timerRunning2) setTimerMod(m); },
+            style: { fontFamily: "inherit", fontSize: 11, fontWeight: 700, padding: "5px 12px", borderRadius: 99,
+              border: `1.5px solid ${timerMod===m ? modColor2(m) : "var(--bdr2)"}`,
+              background: timerMod===m ? `${modColor2(m)}22` : "transparent",
+              color: timerMod===m ? modColor2(m) : "var(--txt3)", cursor: timerRunning2?"not-allowed":"pointer" } }, m))
+        ),
+        React.createElement("div", { className: "card card-p", style: { textAlign: "center", marginBottom: 14 } },
+          React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: timerType==="focus"?"var(--acc)":"var(--gold)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 } },
+            timerType==="focus" ? `🎯 Focus — ${timerMod}` : "☕ Break Time"
+          ),
+          React.createElement("div", { style: { position: "relative", width: 160, height: 160, margin: "0 auto 16px" } },
+            React.createElement("svg", { width: 160, height: 160, style: { transform: "rotate(-90deg)" } },
+              React.createElement("circle", { cx: 80, cy: 80, r: 70, fill: "none", stroke: "var(--sur2)", strokeWidth: 8 }),
+              React.createElement("circle", { cx: 80, cy: 80, r: 70, fill: "none", stroke: timerType==="focus"?"var(--acc)":"var(--gold)", strokeWidth: 8,
+                strokeDasharray: `${2*Math.PI*70}`, strokeDashoffset: `${2*Math.PI*70*(1-pct3/100)}`,
+                strokeLinecap: "round", style: { transition: "stroke-dashoffset 1s linear" } })
+            ),
+            React.createElement("div", { style: { position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" } },
+              React.createElement("div", { style: { fontFamily: "var(--mono)", fontSize: 36, fontWeight: 800 } }, fmt(timerSecs2)),
+              React.createElement("div", { style: { fontSize: 11, color: "var(--txt3)" } }, timerType==="focus"?"25 min":"5 min break")
+            )
+          ),
+          React.createElement("div", { style: { display: "flex", gap: 10, justifyContent: "center" } },
+            React.createElement("button", { onClick: () => { setTimerSecs2(timerType==="focus"?25*60:5*60); setTimerRunning2(false); },
+              style: { fontFamily: "inherit", fontSize: 13, fontWeight: 700, padding: "10px 20px", borderRadius: 99, border: "1.5px solid var(--bdr2)", background: "var(--sur2)", color: "var(--txt2)", cursor: "pointer" } }, "↺ Reset"),
+            React.createElement("button", { onClick: () => { setTimerRunning2(r=>!r); if(navigator.vibrate) navigator.vibrate(30); },
+              style: { fontFamily: "inherit", fontSize: 15, fontWeight: 700, padding: "10px 28px", borderRadius: 99, border: "none",
+                background: timerRunning2 ? "var(--red)" : "var(--acc)", color: "#fff", cursor: "pointer" } },
+              timerRunning2 ? "⏸ Pause" : "▶ Start"
+            ),
+            React.createElement("button", { onClick: () => { setTimerType(t=>t==="focus"?"break":"focus"); setTimerSecs2(timerType==="focus"?5*60:25*60); setTimerRunning2(false); },
+              style: { fontFamily: "inherit", fontSize: 13, fontWeight: 700, padding: "10px 20px", borderRadius: 99, border: "1.5px solid var(--bdr2)", background: "var(--sur2)", color: "var(--txt2)", cursor: "pointer" } },
+              timerType==="focus"?"☕ Break":"🎯 Focus"
+            )
+          )
+        ),
+        React.createElement("div", { className: "card card-p", style: { marginBottom: 12 } },
+          React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 10 } },
+            React.createElement("div", { style: { fontSize: 13, fontWeight: 700 } }, "📚 Today's Study"),
+            React.createElement("div", { style: { fontFamily: "var(--mono)", fontWeight: 700, color: "var(--acc)" } }, `${(todayTotal/3600).toFixed(1)}h`)
+          ),
+          STUDY_MODS2.map(m => {
+            const secs = studySessions[`${m}_${todayKey3}`] || 0;
+            if (!secs) return null;
+            return React.createElement("div", { key: m, style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 6 } },
+              React.createElement("div", { style: { fontSize: 12, fontWeight: 600, width: 72, color: modColor2(m) } }, m),
+              React.createElement("div", { style: { flex: 1, height: 6, background: "var(--sur2)", borderRadius: 99 } },
+                React.createElement("div", { style: { height: "100%", width: `${Math.min(100,secs/7200*100)}%`, background: modColor2(m), borderRadius: 99 } })
+              ),
+              React.createElement("div", { style: { fontSize: 11, fontFamily: "var(--mono)", color: modColor2(m), minWidth: 32 } }, `${(secs/3600).toFixed(1)}h`)
+            );
+          })
+        )
+      );
+    })()
+  ),
+
+  section === "aws" && React.createElement("div", { className: "fu" },
     // AWS re/Start Countdown
     (() => {
       const awsDate = new Date("2026-04-28T00:00:00");
@@ -8360,7 +8644,6 @@ function ExamsTab(_ref22) {
         { id: "alx_plan", label: "ALX submission schedule reviewed", cat: "Academic" },
         { id: "sleep", label: "Sleep early the night before", cat: "Wellness" },
       ];
-      const [awsChecks, setAwsChecks] = React.useState(() => { try { return JSON.parse(localStorage.getItem("aws_checklist")||"{}"); } catch { return {}; } });
       const tog = id => { const n={...awsChecks,[id]:!awsChecks[id]}; setAwsChecks(n); localStorage.setItem("aws_checklist",JSON.stringify(n)); };
       const cats = [...new Set(AWS_CHECKLIST.map(i=>i.cat))];
       const done = AWS_CHECKLIST.filter(i=>awsChecks[i.id]).length;
@@ -10272,6 +10555,7 @@ function NotifsTab(_ref36) {
   const [syncSaved, setSyncSaved] = useState(false);
   const [keyInput, setKeyInput] = useState("");
   const [keySaved, setKeySaved] = useState(false);
+  const [backupStatus, setBackupStatus] = useState(null);
   const [prefs, setPrefs] = useState(() => LS("notif_prefs_v1") || {
     wake: true, midday: true, alx: true, late: true, sleep: true,
     deadline: true, deadlines_24h: true, deadlines_day: true
@@ -10402,6 +10686,31 @@ function NotifsTab(_ref36) {
   ),
   notifSection === "settings" && React.createElement("div", null,
     React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt2)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 4px 8px" } }, "Appearance"),
+    React.createElement("div", { className: "card card-p", style: { marginBottom: 12 } },
+      React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 } }, "☁️ Cloud Backup"),
+      React.createElement("div", { style: { fontSize: 12, color: "var(--txt2)", marginBottom: 12 } }, "Save ALL your data to the cloud so it survives a cache clear. Restore it anytime on any device with your sync code."),
+      (() => {
+        return React.createElement("div", { style: { display: "flex", gap: 8 } },
+          React.createElement("button", { onClick: async () => {
+            setBackupStatus("saving");
+            const ok = await syncFullBackup();
+            setBackupStatus(ok ? "saved" : "error");
+            setTimeout(() => setBackupStatus(null), 3000);
+          }, style: { fontFamily: "inherit", fontSize: 13, fontWeight: 700, padding: "8px 16px", borderRadius: 10, border: "1.5px solid var(--acc)", background: "var(--acc-dim)", color: "var(--acc)", cursor: "pointer", flex: 1 } },
+            backupStatus === "saving" ? "Saving…" : backupStatus === "saved" ? "✅ Saved!" : backupStatus === "error" ? "❌ Failed" : "☁️ Backup Now"
+          ),
+          React.createElement("button", { onClick: async () => {
+            if (!confirm("This will overwrite your current data with the cloud backup. Continue?")) return;
+            setBackupStatus("restoring");
+            const ok = await restoreFullBackup();
+            if (ok) { setBackupStatus("restored"); setTimeout(() => window.location.reload(), 1000); }
+            else setBackupStatus("error");
+          }, style: { fontFamily: "inherit", fontSize: 13, fontWeight: 700, padding: "8px 16px", borderRadius: 10, border: "1.5px solid var(--bdr2)", background: "var(--sur2)", color: "var(--txt2)", cursor: "pointer", flex: 1 } },
+            backupStatus === "restoring" ? "Restoring…" : backupStatus === "restored" ? "✅ Done!" : "⬇️ Restore"
+          )
+        );
+      })()
+    ),
     React.createElement("div", { className: "list-card", style: { marginBottom: 16 } },
       React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: "0.5px solid var(--sep)" } },
         React.createElement("div", { style: { flex: 1 } },
@@ -10548,6 +10857,185 @@ function NotifsTab(_ref36) {
         const w = window.open("","_blank"); w.document.write(html); w.document.close();
       }, style: { fontFamily: "inherit", fontSize: 13, fontWeight: 700, padding: "8px 18px", borderRadius: 10, border: "1.5px solid var(--acc)", background: "var(--acc-dim)", color: "var(--acc)", cursor: "pointer" } }, "📄 Generate Portfolio PDF")
     ),
+
+    // ── PRINT WEEKLY SNAPSHOT ──────────────────────────────────────────────
+    React.createElement("div", { className: "card card-p", style: { marginBottom: 12 } },
+      React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 } }, "🖨️ Print Pages"),
+      React.createElement("div", { style: { fontSize: 12, color: "var(--txt2)", marginBottom: 12 } }, "Generate pages you can print and use alongside your physical planner or notebook."),
+
+      // Weekly Snapshot button
+      React.createElement("button", { onClick: () => {
+        const wkKey = (() => { const d=new Date(); d.setDate(d.getDate()-(d.getDay()+6)%7); return d.toISOString().slice(0,10); })();
+        const wkEnd = (() => { const d=new Date(); d.setDate(d.getDate()-(d.getDay()+6)%7+6); return d.toISOString().slice(0,10); })();
+        const deadlines = Object.values((() => { try { return JSON.parse(localStorage.getItem("deadlines_v1")||"{}"); } catch { return {}; } })()).filter(d=>!d.done&&d.date>=wkKey&&d.date<=new Date(Date.now()+14*86400000).toISOString().slice(0,10)).sort((a,b)=>a.date.localeCompare(b.date));
+        const exams = Object.values((() => { try { return JSON.parse(localStorage.getItem("exam_events_v1")||"{}"); } catch { return {}; } })()).filter(e=>new Date(e.date)>=new Date()&&new Date(e.date)<=new Date(Date.now()+30*86400000)).sort((a,b)=>a.date.localeCompare(b.date));
+        const opps = Object.values((() => { try { return JSON.parse(localStorage.getItem("pipeline_opps")||"{}"); } catch { return {}; } })()).filter(o=>o.col==="interview"||o.col==="applied");
+        const reviews = (() => { try { return JSON.parse(localStorage.getItem("reviews_v1")||"{}"); } catch { return {}; } })();
+        const lastReview = Object.values(reviews).filter(r=>r.done).sort((a,b)=>b.wk?.localeCompare(a.wk))[0];
+        const DAYS2 = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+        const slots = window._SLOTS || [];
+
+        let html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Weekly Snapshot</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Helvetica Neue',Arial,sans-serif;color:#111;padding:24px;max-width:800px;margin:0 auto;font-size:13px;}
+  h1{font-size:22px;font-weight:800;margin-bottom:2px;}
+  .sub{color:#666;font-size:12px;margin-bottom:20px;}
+  h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#666;margin:20px 0 8px;border-bottom:1px solid #eee;padding-bottom:4px;}
+  .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:16px;}
+  .day-col{border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;}
+  .day-hdr{background:#f3f4f6;padding:4px 6px;font-size:10px;font-weight:700;text-align:center;text-transform:uppercase;color:#374151;}
+  .day-hdr.today{background:#0a84ff;color:#fff;}
+  .block{padding:3px 6px;font-size:9px;border-bottom:1px solid #f3f4f6;line-height:1.3;}
+  .block.done{text-decoration:line-through;color:#aaa;}
+  .block-time{font-weight:700;color:#6b7280;font-size:8px;}
+  .dl-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f3f4f6;align-items:center;}
+  .dl-title{font-weight:600;}
+  .dl-date{font-size:11px;color:#6b7280;font-family:monospace;}
+  .pill{display:inline-block;padding:1px 6px;border-radius:99px;font-size:9px;font-weight:700;margin-right:4px;}
+  .opp-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f3f4f6;}
+  .goals-box{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px;margin-top:4px;}
+  .goals-box li{margin:4px 0 4px 16px;font-size:12px;}
+  .review-box{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;}
+  .note-lines{margin-top:6px;}
+  .line{border-bottom:1px solid #e5e7eb;height:24px;margin-bottom:0;}
+  .badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;border:1px solid currentColor;}
+  @media print{.no-print{display:none!important;} body{padding:12px;}}
+</style></head><body>
+<button class="no-print" onclick="window.print()" style="position:fixed;top:16px;right:16px;padding:8px 16px;background:#0a84ff;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;">🖨️ Print</button>
+
+<h1>Weekly Snapshot</h1>
+<div class="sub">${wkKey} – ${wkEnd} &nbsp;·&nbsp; Junior Kabelo Motsoko</div>
+
+<h2>📅 This Week's Schedule</h2>
+<div class="grid">`;
+
+        const todayName = DAYS2[(new Date().getDay()+6)%7];
+        const DAYS_SHORT = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+        DAYS_SHORT.forEach((d,i) => {
+          const isToday = DAYS2[i] === todayName;
+          const dayBlocks = slots.filter(s=>s[d]&&!["SLEEP","BREAK","FREE"].includes(s[d]?.type)&&s.sec!=="SLEEP").slice(0,8);
+          html += `<div class="day-col"><div class="day-hdr${isToday?" today":""}">${d}</div>`;
+          if (!dayBlocks.length) { html += `<div class="block" style="color:#ccc;font-size:9px;padding:6px;text-align:center;">—</div>`; }
+          dayBlocks.forEach(b => {
+            html += `<div class="block"><div class="block-time">${b.time}</div>${b[d].label||b[d].type}</div>`;
+          });
+          html += `</div>`;
+        });
+
+        html += `</div>
+
+<h2>📋 Deadlines & Exams (Next 2 Weeks)</h2>`;
+        if (!deadlines.length && !exams.length) { html += `<p style="color:#aaa">Nothing due — stay ahead!</p>`; }
+        deadlines.forEach(d => {
+          const days = Math.ceil((new Date(d.date)-new Date())/86400000);
+          html += `<div class="dl-row"><div><span class="pill" style="background:${days<=3?"#fee2e2":days<=7?"#fef3c7":"#f0fdf4"};color:${days<=3?"#dc2626":days<=7?"#d97706":"#16a34a"}">${days===0?"TODAY":days===1?"TOMORROW":days+"d"}</span><span class="dl-title">${d.title}</span> <span style="font-size:10px;color:#9ca3af">${d.type}</span></div><div class="dl-date">${d.date}</div></div>`;
+        });
+        exams.forEach(e => {
+          const days = Math.ceil((new Date(e.date)-new Date())/86400000);
+          html += `<div class="dl-row"><div><span class="pill" style="background:#eff6ff;color:#2563eb">${days}d</span><span class="dl-title">${e.title}</span> <span style="font-size:10px;color:#9ca3af">${e.type}</span></div><div class="dl-date">${e.date}</div></div>`;
+        });
+
+        if (opps.length) {
+          html += `<h2>🚀 Active Applications</h2>`;
+          opps.forEach(o => {
+            html += `<div class="opp-row"><div><strong>${o.title}</strong> — ${o.org||""}</div><span class="badge" style="color:${o.col==="interview"?"#7c3aed":"#0a84ff"}">${o.col}</span></div>`;
+          });
+        }
+
+        const wkGoals = (() => { try { return JSON.parse(localStorage.getItem("week_goals_v1")||"{}"); } catch { return {}; } })()[wkKey] || [];
+        if (wkGoals.length) {
+          html += `<h2>🎯 This Week's Goals</h2><div class="goals-box"><ul>`;
+          wkGoals.forEach(g => { html += `<li>${g.done?"✅":"☐"} ${g.text}</li>`; });
+          html += `</ul></div>`;
+        }
+
+        if (lastReview) {
+          html += `<h2>📓 Last Week's Reflection</h2><div class="review-box">`;
+          if (lastReview.win) html += `<p><strong>Win:</strong> ${lastReview.win}</p>`;
+          if (lastReview.diff) html += `<p style="margin-top:6px"><strong>Do differently:</strong> ${lastReview.diff}</p>`;
+          html += `</div>`;
+        }
+
+        html += `<h2>✍️ Notes for This Week</h2><div class="note-lines">`;
+        for (let i=0;i<8;i++) html += `<div class="line"></div>`;
+        html += `</div></body></html>`;
+
+        const w = window.open("","_blank"); w.document.write(html); w.document.close();
+      }, style: { fontFamily: "inherit", fontSize: 13, fontWeight: 700, padding: "10px 18px", borderRadius: 10, border: "1.5px solid var(--blue)", background: "rgba(10,132,255,0.08)", color: "var(--blue)", cursor: "pointer", width: "100%", marginBottom: 8 } },
+      "📅 Print Weekly Snapshot"
+    ),
+
+    // Weekly Planner Template button
+    React.createElement("button", { onClick: () => {
+      const DAYS2 = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+      const times = ["05:00","06:00","07:00","08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00","21:00","22:00"];
+      let html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Weekly Planner</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Helvetica Neue',Arial,sans-serif;color:#111;padding:16px;font-size:11px;}
+  h1{font-size:18px;font-weight:800;margin-bottom:2px;}
+  .sub{color:#888;font-size:11px;margin-bottom:12px;}
+  table{width:100%;border-collapse:collapse;table-layout:fixed;}
+  th{background:#f3f4f6;padding:6px 4px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;border:1px solid #e5e7eb;}
+  td{border:1px solid #e5e7eb;height:28px;vertical-align:top;padding:2px 4px;font-size:9px;color:#9ca3af;}
+  td.time{background:#f9fafb;font-weight:700;font-size:9px;color:#374151;text-align:right;width:42px;}
+  .bottom{margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .box{border:1px solid #e5e7eb;border-radius:6px;padding:10px;}
+  .box h3{font-size:11px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:8px;}
+  .line{border-bottom:1px solid #e5e7eb;height:22px;}
+  .priority{display:flex;align-items:center;gap:6px;margin-bottom:6px;}
+  .num{width:18px;height:18px;border-radius:50%;background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;}
+  .pline{flex:1;border-bottom:1px solid #e5e7eb;height:18px;}
+  @media print{.no-print{display:none!important;} body{padding:8px;}}
+</style></head><body>
+<button class="no-print" onclick="window.print()" style="position:fixed;top:12px;right:12px;padding:7px 14px;background:#0a84ff;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;">🖨️ Print</button>
+
+<h1>Weekly Planner</h1>
+<div class="sub">Week of _____________________ &nbsp;·&nbsp; Name: Junior Kabelo Motsoko</div>
+
+<table>
+  <thead><tr><th style="width:42px">Time</th>`;
+      DAYS2.forEach(d => { html += `<th>${d.slice(0,3)}</th>`; });
+      html += `</tr></thead><tbody>`;
+      times.forEach(t => {
+        html += `<tr><td class="time">${t}</td>`;
+        DAYS2.forEach(() => { html += `<td></td>`; });
+        html += `</tr>`;
+      });
+      html += `</tbody></table>
+
+<div class="bottom">
+  <div class="box">
+    <h3>🎯 Top 3 Priorities This Week</h3>
+    ${[1,2,3].map(n=>`<div class="priority"><div class="num">${n}</div><div class="pline"></div></div>`).join("")}
+    <h3 style="margin-top:12px">📋 Deadlines</h3>
+    ${[1,2,3,4].map(()=>`<div class="line"></div>`).join("")}
+  </div>
+  <div class="box">
+    <h3>💡 This Week's Focus</h3>
+    ${[1,2,3].map(()=>`<div class="line"></div>`).join("")}
+    <h3 style="margin-top:12px">📓 End of Week Reflection</h3>
+    <p style="font-size:9px;color:#888;margin-bottom:4px">Win:</p>
+    ${[1,2].map(()=>`<div class="line"></div>`).join("")}
+    <p style="font-size:9px;color:#888;margin:6px 0 4px">Do differently:</p>
+    ${[1,2].map(()=>`<div class="line"></div>`).join("")}
+    <p style="font-size:9px;color:#888;margin:6px 0 4px">Attendance %:</p>
+    <div class="line"></div>
+  </div>
+</div>
+
+<div style="margin-top:12px;border:1px solid #e5e7eb;border-radius:6px;padding:10px;">
+  <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:8px">✍️ Notes</h3>
+  ${[1,2,3,4,5,6].map(()=>`<div class="line"></div>`).join("")}
+</div>
+</body></html>`;
+
+      const w = window.open("","_blank"); w.document.write(html); w.document.close();
+    }, style: { fontFamily: "inherit", fontSize: 13, fontWeight: 700, padding: "10px 18px", borderRadius: 10, border: "1.5px solid var(--purple)", background: "rgba(99,102,241,0.08)", color: "var(--purple)", cursor: "pointer", width: "100%" } },
+    "📓 Print Weekly Planner Template"
+    )),
+
     React.createElement("div", { className: "card card-p", style: { marginBottom: 16 } },
       React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 } }, "About"),
       React.createElement("div", { style: { fontSize: 13, color: "var(--txt2)", lineHeight: 1.6 } }, "Master Schedule PWA · Built by Junior Kabelo Motsoko · github.com/Junior-Motsoko/schedule")
@@ -11283,3 +11771,4 @@ ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.c
 <script>if("serviceWorker"in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));</script>
 </body>
 </html>
+
