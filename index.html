@@ -897,7 +897,8 @@ function App() {
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
   const [isOffline, setIsOffline] = useState(() => !navigator.onLine);
-  const [syncStatus, setSyncStatus] = useState(null); // "syncing"|"synced"|"error"
+  const [syncStatus, setSyncStatus] = useState(null);
+  const [syncTick, setSyncTick] = useState(0); // increments on every background sync to force re-renders // "syncing"|"synced"|"error"
   useEffect(() => {
     onSyncStatus(s => {
       setSyncStatus(s);
@@ -947,7 +948,7 @@ function App() {
   // Skeleton on mount + pull from Supabase
   useEffect(() => {
     const t = setTimeout(() => setLoading(false), 900);
-    const pullFromSupa = async () => {
+    const pullFromSupa = async (silent = false) => {
       try {
         const ticks = await supa.get("ticks", `user_id=eq.${DEVICE_ID}`);
         if (ticks?.length) {
@@ -1020,10 +1021,29 @@ function App() {
           examSess.forEach(s => { merged[s.id] = { id: s.id, sub: s.sub, secs: s.secs, date: s.date }; });
           LSS("exam_sessions_v1", merged);
         }
+        // Signal sync success only on background polls
+        if (!silent) {
+          _syncListeners.forEach(fn => fn("synced"));
+          setSyncTick(t2 => t2 + 1);
+        }
       } catch (e) { console.log("Supabase pull failed:", e); }
     };
-    pullFromSupa();
-    return () => clearTimeout(t);
+    pullFromSupa(true);
+
+    // Poll every 30 seconds for changes from other devices
+    const pollInterval = setInterval(() => {
+      if (navigator.onLine) pullFromSupa(false);
+    }, 30000);
+
+    // Also re-sync when tab becomes visible (user switches back to app)
+    const onVisible = () => { if (document.visibilityState === "visible" && navigator.onLine) pullFromSupa(false); };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      clearTimeout(t);
+      clearInterval(pollInterval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
   // Schedule notifications on load
@@ -1049,11 +1069,17 @@ function App() {
     localStorage.setItem("th", theme);
   }, [theme]);
   const slots = era === "NOW" ? SLOTS : SLOTS_AWS;
-  const wk = useMemo(() => {
+  const currentWk = useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() - (d.getDay() + 6) % 7);
     return d.toISOString().slice(0, 10);
   }, []);
+  const [wkOffset, setWkOffset] = useState(0); // 0 = current week, -1 = last week etc
+  const wk = useMemo(() => {
+    const d = new Date(currentWk);
+    d.setDate(d.getDate() + wkOffset * 7);
+    return d.toISOString().slice(0, 10);
+  }, [currentWk, wkOffset]);
   const ck = (t, d) => `${wk}_${t}_${d}`;
   const tog = useCallback(k => {
     setChecked(p => {
@@ -1855,7 +1881,7 @@ Give a SHORT motivational briefing (max 60 words, 2-3 sentences). Specific to hi
       React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "var(--red)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 } }, "⚠️ Top skip reasons"),
       top.map(([r,n]) => React.createElement("div", { key: r, style: { fontSize: 12, color: "var(--txt2)" } }, `${r}: ${n}x`))
     );
-  })()), 
+  })()),
 
   // Sunday review nudge
   (() => {
@@ -2751,11 +2777,12 @@ Give a SHORT motivational briefing (max 60 words, 2-3 sentences). Specific to hi
   ))),
   tab === "schedule" && /*#__PURE__*/React.createElement(ScheduleTab, {
     slots: slots, checked: checked, tog: tog, di: di, setDi: setDi,
-    filter: filter, setFilter: setFilterM, wk: wk, coll: coll, setColl: setColl
+    filter: filter, setFilter: setFilterM, wk: wk, coll: coll, setColl: setColl,
+    wkOffset: wkOffset, setWkOffset: setWkOffset, currentWk: currentWk
   }),
   tab === "amazon" && /*#__PURE__*/React.createElement(AmazonTab, null),
-  tab === "deadlines" && /*#__PURE__*/React.createElement(DeadlinesTab, null),
-  tab === "pipeline" && /*#__PURE__*/React.createElement(PipelineTab, null),
+  tab === "deadlines" && /*#__PURE__*/React.createElement(DeadlinesTab, { syncTick }),
+  tab === "pipeline" && /*#__PURE__*/React.createElement(PipelineTab, { syncTick }),
   tab === "review" && /*#__PURE__*/React.createElement(ReviewTab, {
     checked: checked, slots: slots, wk: wk
   }),
@@ -3769,7 +3796,7 @@ const CHEAT_SHEET = [{
 }];
 const PIPELINE_STAGES = ["Applied", "OA", "Phone Screen", "Virtual Loop", "Offer", "Rejected"];
 
-function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, coll, setColl }) {
+function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, coll, setColl, wkOffset, setWkOffset, currentWk }) {
   // Safety guard — if slots isn't ready yet, render nothing
   if (!slots || !Array.isArray(slots) || slots.length === 0) {
     return React.createElement("div", { className: "fu", style: { padding: 32, textAlign: "center", color: "var(--txt3)" } },
@@ -4295,6 +4322,35 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
       )
     ),
 
+    // Week navigation
+    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 12 } },
+      React.createElement("button", {
+        onClick: () => setWkOffset && setWkOffset(o => o - 1),
+        style: { fontFamily: "inherit", fontSize: 18, fontWeight: 700, padding: "4px 12px", borderRadius: 8, border: "1px solid var(--bdr2)", background: "var(--sur2)", color: "var(--txt2)", cursor: "pointer" }
+      }, "‹"),
+      React.createElement("div", { style: { flex: 1, textAlign: "center" } },
+        React.createElement("div", { style: { fontSize: 14, fontWeight: 700 } },
+          wkOffset === 0 ? "This Week" : wkOffset === -1 ? "Last Week" : `${Math.abs(wkOffset)} weeks ago`
+        ),
+        React.createElement("div", { style: { fontSize: 11, color: "var(--txt3)", fontFamily: "var(--mono)" } },
+          (() => {
+            const start = new Date(wk);
+            const end = new Date(wk); end.setDate(end.getDate() + 6);
+            return `${start.toLocaleDateString("en-ZA",{day:"numeric",month:"short"})} – ${end.toLocaleDateString("en-ZA",{day:"numeric",month:"short"})}`;
+          })()
+        )
+      ),
+      React.createElement("button", {
+        onClick: () => setWkOffset && setWkOffset(o => Math.min(0, o + 1)),
+        disabled: wkOffset === 0,
+        style: { fontFamily: "inherit", fontSize: 18, fontWeight: 700, padding: "4px 12px", borderRadius: 8, border: "1px solid var(--bdr2)", background: "var(--sur2)", color: wkOffset === 0 ? "var(--bdr2)" : "var(--txt2)", cursor: wkOffset === 0 ? "default" : "pointer" }
+      }, "›"),
+      wkOffset !== 0 && React.createElement("button", {
+        onClick: () => setWkOffset && setWkOffset(0),
+        style: { fontFamily: "inherit", fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 8, border: "1.5px solid var(--acc)", background: "var(--acc-dim)", color: "var(--acc)", cursor: "pointer" }
+      }, "Today")
+    ),
+
     // View toggle + Edit mode button
     React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" } },
       React.createElement("div", { className: "seg-ctrl", style: { flex: 1 } },
@@ -4599,7 +4655,6 @@ function ScheduleTab({ slots, checked, tog, di, setDi, filter, setFilter, wk, co
         );
       })()
     ),
-
 
     // ── REGISTER VIEW ────────────────────────────────────────────────────
     view === "register" && React.createElement("div", null, (() => {
@@ -6795,8 +6850,9 @@ const DEADLINE_TYPES = [{
   c: "#5a1880",
   ic: "🛡"
 }];
-function DeadlinesTab() {
+function DeadlinesTab({ syncTick }) {
   const [deadlines, setDeadlines] = useState(() => LS("deadlines_v1"));
+  useEffect(() => { if (syncTick > 0) setDeadlines(LS("deadlines_v1")); }, [syncTick]);
   const [showing, setShowing] = useState("list");
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("date");
@@ -7185,6 +7241,45 @@ function DeadlinesTab() {
       )
     ),
 
+    // Urgency heatmap — show next 14 days with deadline density
+    showing!=="form" && upcoming.length > 0 && (() => {
+      const today = new Date(); today.setHours(0,0,0,0);
+      const days14 = Array.from({length:14}, (_,i) => {
+        const d = new Date(today); d.setDate(today.getDate()+i);
+        return d.toISOString().slice(0,10);
+      });
+      const byDay = {};
+      upcoming.forEach(dl => { if(!byDay[dl.date]) byDay[dl.date]=[]; byDay[dl.date].push(dl); });
+      const hasDl = days14.some(d => byDay[d]?.length);
+      if (!hasDl) return null;
+      const dayNames = ["Mo","Tu","We","Th","Fr","Sa","Su"];
+      return React.createElement("div", {style:{marginBottom:12}},
+        React.createElement("div", {style:{fontSize:10,fontWeight:700,color:"var(--txt3)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}, "📅 Next 14 Days"),
+        React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(14,1fr)",gap:3}},
+          days14.map((date,i) => {
+            const dls = byDay[date] || [];
+            const isToday = i===0;
+            const hasOverdue = dls.some(d=>d.priority==="🔴");
+            const bg = dls.length===0 ? "var(--sur2)" : hasOverdue||dls.some(d=>d.priority==="🔴") ? "rgba(255,77,109,0.6)" : dls.length>=2 ? "rgba(255,149,0,0.7)" : "rgba(52,211,153,0.6)";
+            const d2 = new Date(date);
+            return React.createElement("div", {key:date, title:`${date}: ${dls.length} deadline${dls.length!==1?'s':''}`,
+              style:{height:32,borderRadius:4,background:bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+                border:isToday?"2px solid var(--acc)":"none",cursor:dls.length?"pointer":"default",position:"relative"}
+            },
+              React.createElement("div", {style:{fontSize:8,fontWeight:700,color:dls.length?"#fff":"var(--txt3)"}}, dayNames[(d2.getDay()+6)%7]),
+              React.createElement("div", {style:{fontSize:9,fontWeight:800,color:dls.length?"#fff":"var(--txt3)"}}, d2.getDate()),
+              dls.length>0 && React.createElement("div", {style:{fontSize:8,color:"#fff",fontWeight:700}}, dls.length)
+            );
+          })
+        ),
+        React.createElement("div", {style:{display:"flex",gap:10,marginTop:6,fontSize:10,color:"var(--txt3)",alignItems:"center"}},
+          React.createElement("div", {style:{width:10,height:10,borderRadius:2,background:"rgba(52,211,153,0.6)"}}), "1 item",
+          React.createElement("div", {style:{width:10,height:10,borderRadius:2,background:"rgba(255,149,0,0.7)"}}), "2+ items",
+          React.createElement("div", {style:{width:10,height:10,borderRadius:2,background:"rgba(255,77,109,0.6)"}}), "Critical"
+        )
+      );
+    })(),
+
     // Programme filter pills
     showing!=="form" && React.createElement("div", {style:{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}},
       [["ALL","All"],["PHY","PHY"],["ISC153","ISC153"],["MAM151","MAM151"],["COS1511","COS1511"],["COS1512","COS1512"],["ALX","ALX"],["AWS","AWS"],["AMAZON","Amazon"],["MWR","MWR"]].map(([k,l]) => {
@@ -7287,7 +7382,7 @@ const DEFAULT_OPPS = [
   { id: "opp_4", title: "AWS re/Start", org: "AWS / Praesignis", type: "Programme", col: "offer", note: "Starts April 28" },
   { id: "opp_5", title: "ALX Africa SWE", org: "ALX Africa", type: "Programme", col: "offer", note: "Active" }
 ];
-function PipelineTab() {
+function PipelineTab({ syncTick }) {
   const [section, setSection] = useState("kanban");
   const [opps, setOpps] = useState(() => {
     const saved = LS("pipeline_opps");
@@ -7296,6 +7391,13 @@ function PipelineTab() {
     DEFAULT_OPPS.forEach(o => { def[o.id] = o; });
     return def;
   });
+  // Re-read from localStorage when another device syncs
+  useEffect(() => {
+    if (syncTick > 0) {
+      const saved = LS("pipeline_opps");
+      if (Object.keys(saved).length > 0) setOpps(saved);
+    }
+  }, [syncTick]);
   const [grades, setGrades] = useState(() => LS("pipeline_grades"));
   const [papers, setPapers] = useState(() => LS("pipeline_papers"));
   const [gradeTargets, setGradeTargets] = useState(() => LS("pipeline_targets"));
@@ -9806,7 +9908,15 @@ function ReviewTab(_ref27) {
 
   const [reviews, setReviews] = useState(() => LS("reviews_v1"));
   const [view, setView] = useState("this");
-  const [form, setForm] = useState(() => LS("reviews_v1")[wk] || { win:"", skipped:"", energy:0, different:"", rating:0, done:false });
+  const [form, setForm] = useState(() => {
+    const saved = LS("reviews_v1")[wk];
+    if (saved) return saved;
+    // Carry-forward last week's "do differently" into this week's form
+    const allWks = Object.keys(LS("reviews_v1")).sort();
+    const lastWk = allWks[allWks.length-1];
+    const lastDiff = lastWk ? LS("reviews_v1")[lastWk]?.different : "";
+    return { win:"", skipped:"", energy:0, different: lastDiff ? `↩ ${lastDiff}` : "", rating:0, done:false };
+  });
   const saveReviews = r => {
     setReviews(r); LSS("reviews_v1", r);
     const lk = Object.keys(r).sort().pop();
