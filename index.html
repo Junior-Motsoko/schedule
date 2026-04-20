@@ -693,18 +693,8 @@ const supa = {
 };
 
 // Device ID — stable identifier per device
-const getDeviceId = () => {
-  const custom = localStorage.getItem("sync_code");
-  if (custom) return custom;
-  let id = localStorage.getItem("device_id");
-  if (!id) {
-    // Short 6-char code easy to type on phone
-    id = Math.random().toString(36).slice(2,8).toUpperCase();
-    localStorage.setItem("device_id", id);
-  }
-  return id;
-};
-const DEVICE_ID = getDeviceId();
+// Fixed user ID — all your devices share this automatically
+const DEVICE_ID = localStorage.getItem("sync_code") || "junior_4482263";
 
 // Sync helpers — write to localStorage immediately, sync to Supabase in background
 const _syncListeners = [];
@@ -10835,45 +10825,18 @@ function NotifsTab(_ref36) {
     ),
     React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--txt2)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 4px 8px" } }, "Data"),
     React.createElement("div", { className: "list-card", style: { marginBottom: 16 } },
-      // Sync Code — cross-device sync
-      (() => {
-        const currentCode = DEVICE_ID;
-        return React.createElement("div", { style: { padding: "14px 16px", borderBottom: "0.5px solid var(--sep)" } },
-          React.createElement("div", { style: { fontSize: 15, fontWeight: 600, marginBottom: 4 } }, "📱 Sync Code"),
-          React.createElement("div", { style: { fontSize: 12, color: "var(--txt2)", marginBottom: 12 } }, "Type this on your other device to sync."),
-          React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 12 } },
-            React.createElement("div", { style: { fontFamily: "var(--mono)", fontSize: 28, fontWeight: 800, letterSpacing: "0.15em", color: "var(--acc)", flex: 1, textAlign: "center", padding: "12px", background: "var(--sur2)", borderRadius: 10 } }, currentCode),
-            React.createElement("button", { onClick: () => navigator.clipboard?.writeText(currentCode),
-              style: { fontFamily: "inherit", fontSize: 12, fontWeight: 700, padding: "8px 14px", borderRadius: 8, border: "1.5px solid var(--acc)", background: "var(--acc-dim)", color: "var(--acc)", cursor: "pointer", flexShrink: 0 }
-            }, "Copy")
-          ),
-          React.createElement("div", { style: { fontSize: 12, color: "var(--txt3)", marginBottom: 6 } }, "On your other device, enter your code here:"),
-          React.createElement("div", { style: { display: "flex", gap: 6 } },
-            React.createElement("input", { value: syncInput, onChange: e => setSyncInput(e.target.value.toUpperCase().slice(0,6)), placeholder: "ABC123", maxLength: 6,
-              style: { flex: 1, background: "var(--sur2)", border: "1px solid var(--bdr2)", borderRadius: 8, padding: "10px 12px", fontSize: 22, fontWeight: 800, letterSpacing: "0.15em", color: "var(--txt)", fontFamily: "var(--mono)", outline: "none", textAlign: "center" } }),
-            React.createElement("button", {
-              onClick: () => {
-                const code = syncInput.trim().toUpperCase();
-                if (code.length < 4) return;
-                localStorage.setItem("sync_code", code);
-                setSyncInput(""); setSyncSaved(true);
-                setTimeout(() => { setSyncSaved(false); window.location.reload(); }, 1000);
-              },
-              style: { fontFamily: "inherit", fontSize: 13, fontWeight: 700, padding: "10px 16px", borderRadius: 8, border: "1.5px solid var(--acc)", background: "var(--acc-dim)", color: "var(--acc)", cursor: "pointer", flexShrink: 0 }
-            }, syncSaved ? "✅" : "Sync")
-          ),
-          localStorage.getItem("sync_code") && React.createElement("button", {
-            onClick: () => { localStorage.removeItem("sync_code"); window.location.reload(); },
-            style: { marginTop: 10, fontFamily: "inherit", fontSize: 11, padding: "4px 10px", borderRadius: 8, border: "1px solid var(--bdr2)", background: "transparent", color: "var(--red)", cursor: "pointer", display: "block" }
-          }, "Reset sync code")
-        );
-      })(),
-      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: "0.5px solid var(--sep)" } },
-        React.createElement("div", { style: { flex: 1 } },
-          React.createElement("div", { style: { fontSize: 15, fontWeight: 600 } }, "Device ID"),
-          React.createElement("div", { style: { fontSize: 11, color: "var(--txt3)", marginTop: 2, fontFamily: "var(--mono)" } }, DEVICE_ID)
+      // Sync — automatic across all devices
+      React.createElement("div", { style: { padding: "14px 16px", borderBottom: "0.5px solid var(--sep)" } },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 6 } },
+          React.createElement("div", { style: { fontSize: 15, fontWeight: 600, flex: 1 } }, "📱 Auto Sync"),
+          React.createElement("div", { style: { fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 99, background: "var(--acc-dim)", color: "var(--acc)" } }, "✅ Active")
         ),
-        React.createElement("button", { onClick: () => navigator.clipboard?.writeText(DEVICE_ID), style: { fontFamily: "inherit", fontSize: 11, padding: "5px 10px", borderRadius: 8, border: "1px solid var(--bdr2)", background: "transparent", color: "var(--txt3)", cursor: "pointer" } }, "Copy")
+        React.createElement("div", { style: { fontSize: 12, color: "var(--txt2)", marginBottom: 8 } },
+          "All your devices sync automatically every 30 seconds. No setup needed."
+        ),
+        React.createElement("div", { style: { fontFamily: "var(--mono)", fontSize: 11, padding: "6px 10px", background: "var(--sur2)", borderRadius: 8, color: "var(--txt3)", wordBreak: "break-all" } },
+          "User ID: ", React.createElement("span", { style: { color: "var(--acc)" } }, DEVICE_ID)
+        )
       ),
       React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, padding: "14px 16px" } },
         React.createElement("div", { style: { flex: 1 } },
